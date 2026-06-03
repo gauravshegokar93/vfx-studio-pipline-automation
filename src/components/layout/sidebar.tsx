@@ -12,7 +12,6 @@ import {
   Users, 
   BarChart3, 
   LogOut,
-  BrainCircuit,
   Search,
   Table as TableIcon,
   LayoutList,
@@ -44,30 +43,32 @@ export function AppSidebar() {
   const { currentUser, currentRole, setRole } = useLuminaStore();
 
   const navItems = [
-    // Shared
+    // Shared Central Dashboard
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     
-    // Production Head (Full Studio Control)
+    // Artist Navigation
+    { label: 'My Tasks', icon: CheckSquare, href: '/tasks', roles: ['Artist', 'Lead'] },
+    { label: 'My Reviews', icon: Film, href: '/review', roles: ['Artist'] },
+    { label: 'Daily Standup', icon: FileSpreadsheet, href: '/daily-tracking', roles: ['Artist'] },
+    
+    // Lead Navigation
+    { label: 'Team Tasks', icon: UserCheck, href: '/lead-dashboard', roles: ['Lead'] },
+    { label: 'Team Members', icon: Users, href: '/users', roles: ['Lead'] },
+    { label: 'Review Queue', icon: Film, href: '/review', roles: ['Lead', 'Department Supervisor', 'Production Head'] },
+    { label: 'Capacity Planning', icon: Activity, href: '/workload', roles: ['Lead'] },
+    
+    // Supervisor Navigation
+    { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Department Supervisor'] },
+    { label: 'Department Progress', icon: Gauge, href: '/department-progress', roles: ['Department Supervisor', 'Production Head'] },
+    { label: 'Artist Allocation', icon: Users, href: '/workload', roles: ['Department Supervisor', 'Production Head'] },
+    { label: 'Calendar', icon: Calendar, href: '/scheduling', roles: ['Department Supervisor', 'Production Head'] },
+
+    // Production Head Navigation
     { label: 'Projects', icon: Layers, href: '/projects', roles: ['Production Head'] },
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
     { label: 'Tasks (SSoT)', icon: LayoutList, href: '/production-queue', roles: ['Production Head'] },
-    { label: 'Staff Directory', icon: ShieldCheck, href: '/users', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
-    
-    // Supervisor (Department Strategy)
-    { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Department Supervisor'] },
-    { label: 'Department Progress', icon: Gauge, href: '/department-progress', roles: ['Department Supervisor', 'Production Head'] },
-    { label: 'Artist Allocation', icon: Users, href: '/workload', roles: ['Department Supervisor', 'Production Head', 'Lead'] },
-    { label: 'Calendar', icon: Calendar, href: '/scheduling', roles: ['Department Supervisor', 'Production Head'] },
-
-    // Lead (Team Management)
-    { label: 'Team Tasks', icon: UserCheck, href: '/lead-dashboard', roles: ['Lead'] },
-    { label: 'Review Queue', icon: Film, href: '/review', roles: ['Lead', 'Department Supervisor', 'Production Head', 'Artist'] },
-    
-    // Artist / Lead Production
-    { label: 'My Tasks', icon: CheckSquare, href: '/tasks', roles: ['Artist', 'Lead'] },
-    { label: 'Daily Standup', icon: FileSpreadsheet, href: '/daily-tracking' },
-    { label: 'Version History', icon: History, href: '/versions', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
+    { label: 'Staff Directory', icon: ShieldCheck, href: '/users', roles: ['Production Head', 'Department Supervisor'] },
     
     // Universal Operations
     { label: 'Leave Requests', icon: Calendar, href: '/leaves' },
@@ -105,10 +106,6 @@ export function AppSidebar() {
                   <p className="text-xs text-white mb-1">New task: <span className="text-crimson font-bold">SH_010 Hero Comp</span></p>
                   <p className="text-[10px] text-muted-foreground">Allocated by Supervisor • 5m ago</p>
                 </div>
-                <div className="p-3 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer border-t border-sidebar-border/30">
-                  <p className="text-xs text-white mb-1">Version v002 <span className="text-yellow-500 font-bold">RETAKE</span></p>
-                  <p className="text-[10px] text-muted-foreground">Shot SH_025 • Feedback provided</p>
-                </div>
              </div>
              <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-muted-foreground hover:text-white rounded-none border-t border-sidebar-border" asChild>
                <Link href="/notifications">Enter Notification Center</Link>
@@ -130,7 +127,7 @@ export function AppSidebar() {
 
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
         {filteredItems.map((item) => (
-          <Link key={item.href} href={item.href}>
+          <Link key={item.href + item.label} href={item.href}>
             <span className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all group",
               pathname === item.href 
