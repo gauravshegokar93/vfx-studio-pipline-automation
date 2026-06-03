@@ -1,149 +1,84 @@
-# VFX Production Intelligence Platform - SQL Server Backend Blueprint (v2.0)
+# Lumina VFX Hub - SQL Server Backend Readiness Blueprint (v3.0)
 
-This document outlines the high-concurrency, production-grade technical architecture for the Node.js / Sequelize / SQL Server backend.
+This document serves as the final technical implementation plan for the SQL Server backend, specifically aligned with the NTM Production Bid Sheet format and automated studio workflow.
 
-## 1. Entity Relationship Diagram (ERD)
-The hierarchy follows a strict VFX pipeline with auditing and session tracking:
-`Projects` > `Sequences` > `Shots` (`ShotStatusHistory`) > `Tasks` (`TaskAssignments`) > (`TimeLogs`, `Versions` (`VersionComments`), `Comments`).
-`Users` and `Departments` are cross-cutting, supported by `UserSessions`, `Notifications`, and `Leaves`.
+## 1. Entity Relationship Validation (Hierarchical Flow)
+The data flow follows a strict parent-child relationship to maintain the "Single Source of Truth":
+**Projects** (1) ➔ **Sequences** (M) ➔ **Shots** (M) ➔ **Tasks** (M) ➔ **TimeLogs** (M) & **Versions** (M)
 
-## 2. Database Schema & Table Definitions
+## 2. NTM Excel to SQL Server Mapping
+| Excel Column Name | Database Table | Database Column | Logic / Transformation |
+| :--- | :--- | :--- | :--- |
+| **Shot Name*** | `Shots` | `ShotCode` | Unique identifier within sequence |
+| **EP/Reel*** | `Sequences` | `SequenceCode` | Grouping key for shots |
+| **Complexity*** | `Shots` | `Priority` | Enum: Low, Medium, High, Critical |
+| **Roto Bid*** | `Tasks` | `BidHours` | Create Task where `PipelineStep = 'Roto'` |
+| **Paint Bid*** | `Tasks` | `BidHours` | Create Task where `PipelineStep = 'Paint'` |
+| **Comp*** | `Tasks` | `BidHours` | Create Task where `PipelineStep = 'Comp'` |
+| **CG*** | `Tasks` | `BidHours` | Create Task where `PipelineStep = 'CG'` |
+| **ETA** | `Shots` / `Tasks` | `DueDate` | Date format: YYYY-MM-DD |
+| **Status** | `Shots` | `Status` | Initial production state |
 
-### Users & Authentication
-**Users**
-- `UserId` (PK, UNIQUEIDENTIFIER)
-- `EmployeeCode` (UNIQUE, NVARCHAR(50))
-- `Name` (NVARCHAR(255))
-- `Email` (UNIQUE, NVARCHAR(255))
-- `PasswordHash` (NVARCHAR(MAX))
-- `Role` (NVARCHAR(50))
-- `DepartmentId` (FK -> Departments)
-- `LeadId` (FK -> Users)
-- `IsActive` (BIT, Default: 1)
+## 3. Database Table Definitions (Finalized)
+### Core Production
+- **Projects**: `ProjectId`, `ProjectCode`, `ProjectName`, `ClientName`, `Status`, `StartDate`, `EndDate`
+- **Sequences**: `SequenceId`, `ProjectId` (FK), `SequenceCode`
+- **Shots**: `ShotId`, `SequenceId` (FK), `ShotCode`, `Priority`, `Status`, `DueDate`, `Description`
+- **Tasks**: `TaskId`, `ShotId` (FK), `PipelineStep`, `TaskName`, `BidHours`, `SpentHours`, `RemainingHours`, `Status`, `DueDate`
+- **TaskAssignments**: `AssignmentId`, `TaskId` (FK), `ArtistId` (FK), `AssignedById` (FK), `AssignedAt`, `IsCurrent`
 
-**UserSessions**
-- `SessionId` (PK, UNIQUEIDENTIFIER)
-- `UserId` (FK -> Users)
-- `RefreshToken` (NVARCHAR(MAX))
-- `ExpiresAt` (DATETIME2)
-- `UserAgent` (NVARCHAR(MAX))
-- `IPAddress` (NVARCHAR(50))
-- `IsRevoked` (BIT, Default: 0)
+### Tracking & Review
+- **TimeLogs**: `LogId`, `TaskId` (FK), `ArtistId` (FK), `StartTime`, `EndTime`, `TotalMinutes`
+- **Versions**: `VersionId`, `TaskId` (FK), `ArtistId` (FK), `VersionNumber`, `FilePath`, `ReviewStatus`, `ReviewComment`
+- **ShotStatusHistory**: `HistoryId`, `ShotId` (FK), `StatusFrom`, `StatusTo`, `ChangedById` (FK), `ChangedAt`
 
-### Resource Management
-**Leaves** (Crucial for AI Scheduling)
-- `LeaveId` (PK, UNIQUEIDENTIFIER)
-- `UserId` (FK -> Users)
-- `StartDate` (DATE)
-- `EndDate` (DATE)
-- `Type` (NVARCHAR(50)) - 'Vacation', 'Sick', 'Holiday'
-- `Status` (NVARCHAR(50)) - 'Pending', 'Approved', 'Rejected'
+### Resource & Admin
+- **Users**: `UserId`, `EmployeeCode`, `Name`, `Email`, `Role`, `DepartmentId` (FK), `LeadId` (FK)
+- **Departments**: `DepartmentId`, `Name`
+- **Leaves**: `LeaveId`, `UserId` (FK), `StartDate`, `EndDate`, `Type`, `Status`
+- **Notifications**: `NotificationId`, `UserId` (FK), `Message`, `Type`, `IsRead`, `CreatedAt`
+- **UserSessions**: `SessionId`, `UserId` (FK), `RefreshToken`, `ExpiresAt`, `IsRevoked`
 
-**Notifications**
-- `NotificationId` (PK, UNIQUEIDENTIFIER)
-- `UserId` (FK -> Users)
-- `Message` (NVARCHAR(MAX))
-- `Type` (NVARCHAR(50)) - 'TaskAssignment', 'ReviewRetake', 'DeadlineWarning'
-- `IsRead` (BIT, Default: 0)
-- `CreatedAt` (DATETIME2)
+## 4. Foreign Key Relationships
+1. `Sequences.ProjectId` ➔ `Projects.ProjectId` (ON DELETE CASCADE)
+2. `Shots.SequenceId` ➔ `Sequences.SequenceId` (ON DELETE CASCADE)
+3. `Tasks.ShotId` ➔ `Shots.ShotId` (ON DELETE CASCADE)
+4. `TimeLogs.TaskId` ➔ `Tasks.TaskId` (ON DELETE CASCADE)
+5. `Versions.TaskId` ➔ `Tasks.TaskId` (ON DELETE CASCADE)
+6. `TaskAssignments.ArtistId` ➔ `Users.UserId`
+7. `Users.DepartmentId` ➔ `Departments.DepartmentId`
 
-### Production Hierarchy
-**Projects**
-- `ProjectId` (PK, UNIQUEIDENTIFIER)
-- `ProjectCode` (UNIQUE, NVARCHAR(50))
-- `ProjectName` (NVARCHAR(255))
-- `ClientName` (NVARCHAR(255))
-- `Status` (NVARCHAR(50))
-- `StartDate`, `EndDate` (DATE)
+## 5. Performance Index Strategy
+- **Clustered Indexes**: All Primary Keys (UUIDs).
+- **Non-Clustered Indexes**:
+  - `Tasks(ShotId, PipelineStep)`: For fast lookup of pipeline status per shot.
+  - `Shots(SequenceId)`: For fast sequence drill-down.
+  - `TaskAssignments(ArtistId, IsCurrent)`: For "My Workbench" queries.
+  - `TimeLogs(TaskId, EndTime)`: For calculating `SpentHours` aggregations.
+  - `Users(Email)`: For authentication performance.
 
-**Sequences**
-- `SequenceId` (PK, UNIQUEIDENTIFIER)
-- `ProjectId` (FK -> Projects)
-- `SequenceCode` (NVARCHAR(50))
+## 6. API Endpoint Design
+### Ingestion
+- `POST /api/import`: Processes NTM Excel binary, returns preview, and commits to SSoT.
 
-**Shots**
-- `ShotId` (PK, UNIQUEIDENTIFIER)
-- `SequenceId` (FK -> Sequences)
-- `ShotCode` (NVARCHAR(50))
-- `Priority` (NVARCHAR(20))
-- `Status` (NVARCHAR(50))
-- `DueDate` (DATE)
+### Production
+- `GET /api/projects`: List all live projects.
+- `GET /api/hierarchy/:projectId`: Returns nested Sequences and Shots.
+- `GET /api/tasks/artist/:userId`: Returns current workbench tasks.
+- `POST /api/tasks/:taskId/timer`: Start/Pause task (writes to `TimeLogs`).
+- `POST /api/tasks/:taskId/submit`: Upload version (writes to `Versions`).
 
-**ShotStatusHistory** (Audit Trail)
-- `HistoryId` (PK, UNIQUEIDENTIFIER)
-- `ShotId` (FK -> Shots)
-- `StatusFrom`, `StatusTo` (NVARCHAR(50))
-- `ChangedById` (FK -> Users)
-- `ChangedAt` (DATETIME2)
+### Review & Management
+- `GET /api/review-queue`: Returns tasks with status 'Pending Review'.
+- `PATCH /api/versions/:versionId`: Approve/Retake version feedback.
+- `GET /api/analytics/productivity`: Aggregates Bid vs Actual ratios.
 
-**Tasks**
-- `TaskId` (PK, UNIQUEIDENTIFIER)
-- `ShotId` (FK -> Shots)
-- `PipelineStep` (NVARCHAR(50))
-- `BidHours` (DECIMAL)
-- `ActualHours` (DECIMAL)
-- `Status` (NVARCHAR(50))
-
-**TaskAssignments** (Tracking Assignment History)
-- `AssignmentId` (PK, UNIQUEIDENTIFIER)
-- `TaskId` (FK -> Tasks)
-- `ArtistId` (FK -> Users)
-- `AssignedById` (FK -> Users)
-- `AssignedAt` (DATETIME2)
-- `IsCurrent` (BIT, Default: 1)
-
-### Feedback & Review
-**Versions**
-- `VersionId` (PK, UNIQUEIDENTIFIER)
-- `TaskId` (FK -> Tasks)
-- `ArtistId` (FK -> Users)
-- `VersionNumber` (INT)
-- `FilePath` (NVARCHAR(MAX))
-- `ReviewStatus` (NVARCHAR(50))
-
-**VersionComments** (Specific to a Version submission)
-- `VersionCommentId` (PK, UNIQUEIDENTIFIER)
-- `VersionId` (FK -> Versions)
-- `UserId` (FK -> Users)
-- `CommentText` (NVARCHAR(MAX))
-- `TimestampInFrames` (INT, Optional)
-
-## 3. Table Relationships & Foreign Keys
-- **1:M**: `Users` -> `UserSessions`, `Leaves`, `Notifications`.
-- **1:M**: `Shots` -> `ShotStatusHistory`.
-- **1:M**: `Tasks` -> `TaskAssignments`.
-- **1:M**: `Versions` -> `VersionComments`.
-
-## 4. Index Strategy
-- **Covering Index**: `TaskAssignments(ArtistId, IsCurrent)` for "My Workbench" queries.
-- **Clustered Index**: All Primary Keys.
-- **Non-Clustered**: `UserSessions(RefreshToken)` for quick validation.
-- **Filtered Index**: `Notifications(UserId)` where `IsRead = 0`.
-
-## 5. SQL Server Naming Conventions
-- **Tables**: PascalCase, Plural (e.g., `ShotStatusHistory`).
-- **Columns**: PascalCase, singular (e.g., `IsRevoked`).
-
-## 6. Updated Business Flows
-
-### Production Authentication Flow
-1. Login verifies credentials.
-2. Create `UserSession` entry with RefreshToken.
-3. AccessToken (JWT) contains `UserId` and `Role`.
-4. On every request, verify `IsRevoked = 0` in `UserSessions`.
-
-### Intelligent Scheduling Flow
-1. Query `UnassignedTasks`.
-2. Query `Artists` availability, subtracting dates found in `Leaves` (Status: 'Approved').
-3. AI generates suggestions.
-4. On "Commit", write entries to `TaskAssignments` and trigger `Notifications`.
-
-### Version Review & Feedback Flow
-1. Artist submits `Version`.
-2. Supervisor reviews, creates `VersionComments`.
-3. If 'Retake', `ShotStatusHistory` is updated.
-4. `Notification` sent to Artist immediately.
-
-### Resource Utilization Flow
-- Productivity = `(BidHours / SUM(TimeLogs.TotalMinutes/60)) * 100`.
-- Display alerts if `ActualHours > BidHours`.
+## 7. Sequelize Model Structure (Associations)
+- **Project** `hasMany` **Sequence**.
+- **Sequence** `hasMany` **Shot**.
+- **Shot** `hasMany` **Task**.
+- **Task** `hasMany` **TimeLog** and `hasMany` **Version**.
+- **Task** `belongsTo` **Shot**.
+- **Artist** (User) `hasMany` **TaskAssignment**.
+- **User** `hasMany` **Leave**.
+- **Notification** `belongsTo` **User**.
