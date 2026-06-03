@@ -23,7 +23,10 @@ import {
   Activity,
   UserCheck,
   FileSpreadsheet,
-  Gauge
+  Gauge,
+  UserCircle,
+  Settings,
+  ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -39,24 +42,42 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { currentUser, currentRole, setRole } = useLuminaStore();
 
+  /**
+   * Role-Based Navigation Matrix
+   * Maps roles to specific labels and access requirements
+   */
   const navItems = [
+    // Shared
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
+    
+    // Production Head (Full Studio Control)
+    { label: 'Projects', icon: Layers, href: '/projects', roles: ['Production Head'] },
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
-    { label: 'Daily Tracking', icon: FileSpreadsheet, href: '/daily-tracking', roles: ['Production Head', 'Department Supervisor'] },
-    { label: 'Dept Progress', icon: Gauge, href: '/department-progress', roles: ['Production Head', 'Department Supervisor'] },
-    { label: 'Production Queue', icon: LayoutList, href: '/production-queue', roles: ['Production Head', 'Department Supervisor'] },
-    { label: 'Hierarchy & Shots', icon: Layers, href: '/projects', roles: ['Production Head', 'Department Supervisor'] },
-    { label: 'Supervisor Queue', icon: LayoutList, href: '/department-queue', roles: ['Department Supervisor'] },
-    { label: 'Lead Dashboard', icon: UserCheck, href: '/lead-dashboard', roles: ['Lead'] },
-    { label: 'My Workbench', icon: CheckSquare, href: '/tasks', roles: ['Artist', 'Lead'] },
-    { label: 'Review Queue', icon: Film, href: '/review', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
-    { label: 'Workload & Capacity', icon: Users, href: '/workload', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Tasks (SSoT)', icon: LayoutList, href: '/production-queue', roles: ['Production Head'] },
+    { label: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
+    
+    // Supervisor (Department Strategy)
+    { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Department Supervisor'] },
+    { label: 'Department Progress', icon: Gauge, href: '/department-progress', roles: ['Department Supervisor', 'Production Head'] },
+    { label: 'Artist Allocation', icon: Users, href: '/workload', roles: ['Department Supervisor', 'Production Head', 'Lead'] },
+    { label: 'Calendar', icon: Calendar, href: '/scheduling', roles: ['Department Supervisor', 'Production Head'] },
+
+    // Lead (Team Management)
+    { label: 'Team Tasks', icon: UserCheck, href: '/lead-dashboard', roles: ['Lead'] },
+    { label: 'Review Queue', icon: Film, href: '/review', roles: ['Lead', 'Department Supervisor', 'Production Head', 'Artist'] },
+    
+    // Artist / Lead Production
+    { label: 'My Tasks', icon: CheckSquare, href: '/tasks', roles: ['Artist', 'Lead'] },
+    { label: 'Daily Standup', icon: FileSpreadsheet, href: '/daily-tracking' },
     { label: 'Version History', icon: History, href: '/versions', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
-    { label: 'Resource Scheduling', icon: BrainCircuit, href: '/scheduling', roles: ['Production Head', 'Department Supervisor'] },
-    { label: 'Analytics', icon: BarChart3, href: '/analytics' },
+    
+    // Universal Operations
+    { label: 'Leave Requests', icon: Calendar, href: '/leaves' },
     { label: 'Notifications', icon: Bell, href: '/notifications' },
+    { label: 'Profile & Settings', icon: Settings, href: '/settings' },
   ];
 
+  // Filter items based on the current simulated role
   const filteredItems = navItems.filter(item => 
     !item.roles || item.roles.includes(currentRole)
   );
@@ -80,18 +101,20 @@ export function AppSidebar() {
           </PopoverTrigger>
           <PopoverContent className="w-80 bg-sidebar border-sidebar-border text-white shadow-2xl p-0 overflow-hidden" align="start">
              <div className="bg-sidebar-accent p-3 border-b border-sidebar-border">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Recent Alerts</h4>
+                <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Production Alerts</h4>
              </div>
              <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
-                {[1,2,3].map(i => (
-                  <div key={i} className="p-3 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer border-b border-sidebar-border/30 last:border-none">
-                    <p className="text-xs text-white mb-1">New task assigned: <span className="text-crimson font-bold">SH_0010 Hero Comp</span></p>
-                    <p className="text-[10px] text-muted-foreground">Assigned by Kyle Reese • 10m ago</p>
-                  </div>
-                ))}
+                <div className="p-3 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer">
+                  <p className="text-xs text-white mb-1">New task: <span className="text-crimson font-bold">SH_010 Hero Comp</span></p>
+                  <p className="text-[10px] text-muted-foreground">Allocated by Supervisor • 5m ago</p>
+                </div>
+                <div className="p-3 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer border-t border-sidebar-border/30">
+                  <p className="text-xs text-white mb-1">Version v002 <span className="text-yellow-500 font-bold">RETAKE</span></p>
+                  <p className="text-[10px] text-muted-foreground">Shot SH_025 • Feedback provided</p>
+                </div>
              </div>
              <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-muted-foreground hover:text-white rounded-none border-t border-sidebar-border" asChild>
-               <Link href="/notifications">View All Notifications</Link>
+               <Link href="/notifications">Enter Notification Center</Link>
              </Button>
           </PopoverContent>
         </Popover>
@@ -102,13 +125,13 @@ export function AppSidebar() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <input
             type="search"
-            placeholder="Search production..."
+            placeholder="Search hierarchy..."
             className="w-full bg-sidebar-accent border-none rounded-md py-2 pl-9 pr-4 text-sm focus:ring-1 focus:ring-crimson outline-none text-white"
           />
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
         {filteredItems.map((item) => (
           <Link key={item.href} href={item.href}>
             <span className={cn(
@@ -128,18 +151,20 @@ export function AppSidebar() {
       </nav>
 
       <div className="p-4 border-t border-sidebar-border bg-sidebar-accent/20">
-        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Simulated Production Context</p>
-        <div className="flex flex-wrap gap-1">
+        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2 flex items-center gap-2">
+          <UserCircle className="w-3 h-3" /> Role Matrix Simulator
+        </p>
+        <div className="grid grid-cols-2 gap-1">
           {['Production Head', 'Department Supervisor', 'Lead', 'Artist'].map(r => (
             <button
               key={r}
               onClick={() => setRole(r as any)}
               className={cn(
-                "text-[8px] px-2 py-1 rounded border transition-colors",
+                "text-[8px] px-2 py-1.5 rounded border transition-colors truncate",
                 currentRole === r ? "bg-crimson text-white border-crimson" : "text-muted-foreground border-sidebar-border hover:bg-sidebar-accent"
               )}
             >
-              {r.split(' ')[0]}
+              {r.split(' ')[0]} {r.split(' ')[1] || ''}
             </button>
           ))}
         </div>
@@ -157,9 +182,8 @@ export function AppSidebar() {
           </div>
         </div>
         
-        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-white hover:bg-sidebar-accent p-2 h-auto text-xs">
-          <LogOut className="w-4 h-4 mr-2" />
-          Logout
+        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-white hover:bg-sidebar-accent p-2 h-auto text-xs" asChild>
+          <Link href="/dashboard"><LogOut className="w-4 h-4 mr-2" /> Sign Out</Link>
         </Button>
       </div>
     </div>
