@@ -11,13 +11,11 @@ import {
   CheckSquare, 
   Users, 
   BarChart3, 
-  Settings, 
   LogOut,
   BrainCircuit,
-  Clapperboard,
   Search,
-  FilePlus,
-  Table as TableIcon
+  Table as TableIcon,
+  LayoutList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -31,7 +29,8 @@ export function AppSidebar() {
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
-    { label: 'Review Queue', icon: Film, href: '/review' },
+    { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Review Queue', icon: Film, href: '/review', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
     { label: 'My Workbench', icon: CheckSquare, href: '/tasks' },
     { label: 'Resource Scheduling', icon: BrainCircuit, href: '/scheduling', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Analytics', icon: BarChart3, href: '/analytics' },
@@ -81,15 +80,15 @@ export function AppSidebar() {
       </nav>
 
       <div className="p-4 border-t border-sidebar-border bg-sidebar-accent/20">
-        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Role Simulator</p>
+        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Single Source Simulator</p>
         <div className="flex flex-wrap gap-1">
           {['Production Head', 'Department Supervisor', 'Lead', 'Artist'].map(r => (
             <button
               key={r}
               onClick={() => setRole(r as any)}
               className={cn(
-                "text-[8px] px-2 py-1 rounded border",
-                currentRole === r ? "bg-crimson text-white border-crimson" : "text-muted-foreground border-sidebar-border"
+                "text-[8px] px-2 py-1 rounded border transition-colors",
+                currentRole === r ? "bg-crimson text-white border-crimson" : "text-muted-foreground border-sidebar-border hover:bg-sidebar-accent"
               )}
             >
               {r.split(' ')[0]}
@@ -110,11 +109,9 @@ export function AppSidebar() {
           </div>
         </div>
         
-        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-white hover:bg-sidebar-accent p-2 h-auto text-xs" asChild>
-          <Link href="/logout">
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Link>
+        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-white hover:bg-sidebar-accent p-2 h-auto text-xs">
+          <LogOut className="w-4 h-4 mr-2" />
+          Logout
         </Button>
       </div>
     </div>
