@@ -113,9 +113,14 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     users: state.users.map(u => u.id === userId ? { ...u, isActive: false } : u)
   })),
 
-  resetUserPassword: (userId) => {
-    console.log(`Password reset triggered for user: ${userId}`);
-  },
+  resetUserPassword: (userId) => set((state) => ({
+    users: state.users.map(u => u.id === userId ? { ...u, isFirstLogin: true } : u),
+    userCredentials: state.userCredentials.map(c => 
+      c.userId === userId 
+        ? { ...c, tempPassword: `LuminaReset${Math.floor(Math.random() * 1000)}!`, lastChangedAt: new Date().toISOString() } 
+        : c
+    )
+  })),
   
   addTask: (task) => set((state) => ({ tasks: [...state.tasks, task] })),
   

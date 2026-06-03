@@ -48,8 +48,12 @@ export default function UserManagementPage() {
   const [importing, setImporting] = useState(false);
 
   // Permission Logic
-  const canCreateSupervisor = currentRole === 'Production Head';
-  const canCreateLeadArtist = currentRole === 'Department Supervisor' || currentRole === 'Production Head';
+  const isProductionHead = currentRole === 'Production Head';
+  const isSupervisor = currentRole === 'Department Supervisor';
+  const isLead = currentRole === 'Lead';
+
+  const canCreateStaff = isProductionHead || isSupervisor;
+  const canDeactivate = isProductionHead || isSupervisor;
 
   // Creation State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -66,9 +70,9 @@ export default function UserManagementPage() {
     const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           u.employeeCode.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Role isolation: Production Head sees all. Supervisor sees their dept.
-    if (currentRole === 'Production Head') return matchesSearch;
-    if (currentRole === 'Department Supervisor') return matchesSearch && u.departmentId === currentUser?.departmentId;
+    if (isProductionHead) return matchesSearch;
+    if (isSupervisor) return matchesSearch && u.departmentId === currentUser?.departmentId;
+    if (isLead) return matchesSearch && u.leadId === currentUser?.id;
     return false;
   });
 
@@ -106,7 +110,6 @@ export default function UserManagementPage() {
   const handleBulkImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setImporting(true);
-      // Simulate Excel Parsing
       setTimeout(() => {
         const mockImported: User[] = [
           { id: 'u_imp_1', employeeCode: 'EMP-VFX-099', name: 'Casey Ryback', email: 'casey@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true, isFirstLogin: true },
@@ -117,6 +120,20 @@ export default function UserManagementPage() {
         toast({ title: "Import Successful", description: "Employee Master records successfully synchronized with SSoT." });
       }, 1500);
     }
+  };
+
+  const handleResetPassword = (user: User) => {
+    // Permission check: Lead can only reset their team
+    if (isLead && user.leadId !== currentUser?.id) {
+      toast({ variant: 'destructive', title: 'Unauthorized', description: 'You can only reset passwords for your assigned team.' });
+      return;
+    }
+    
+    resetUserPassword(user.id);
+    toast({ 
+      title: 'Password Reset Issued', 
+      description: `User ${user.name} will be forced to change password on next login.` 
+    });
   };
 
   const leadsInDept = users.filter(u => u.role === 'Lead' && u.departmentId === (formData.departmentId || currentUser?.departmentId));
@@ -130,27 +147,29 @@ export default function UserManagementPage() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <ShieldCheck className="text-crimson w-5 h-5" />
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Enterprise Identity Management</span>
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Staff Directory & Identity Hub</span>
               </div>
-              <h1 className="text-4xl font-headline text-white mb-2">Staff Orchestration</h1>
-              <p className="text-muted-foreground">Managing studio permissions and hierarchical resource creation.</p>
+              <h1 className="text-4xl font-headline text-white mb-2">Production Resource Registry</h1>
+              <p className="text-muted-foreground">Managing hierarchical permissions and secure identity lifecycles.</p>
             </div>
             
             <div className="flex gap-4">
-              <div className="relative">
-                <input type="file" id="bulk-import" className="hidden" accept=".xlsx,.csv" onChange={handleBulkImport} />
-                <label htmlFor="bulk-import" className="cursor-pointer bg-sidebar-accent border border-sidebar-border hover:bg-sidebar-accent/80 text-white px-6 h-12 flex items-center gap-2 rounded-md font-bold transition-all">
-                  {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
-                  {importing ? "Importing Master..." : "Import Employee Master"}
-                </label>
-              </div>
+              {isProductionHead && (
+                <div className="relative">
+                  <input type="file" id="bulk-import" className="hidden" accept=".xlsx,.csv" onChange={handleBulkImport} />
+                  <label htmlFor="bulk-import" className="cursor-pointer bg-sidebar-accent border border-sidebar-border hover:bg-sidebar-accent/80 text-white px-6 h-12 flex items-center gap-2 rounded-md font-bold transition-all">
+                    {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+                    {importing ? "Importing Master..." : "Import Employee Master"}
+                  </label>
+                </div>
+              )}
 
-              {canCreateLeadArtist && (
+              {canCreateStaff && (
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                   <DialogTrigger asChild>
                     <Button className="bg-crimson h-12 px-8 font-bold shadow-lg shadow-crimson/20">
                       <UserPlus className="w-5 h-5 mr-2" /> 
-                      {canCreateSupervisor ? "Create Studio Staff" : "Add Team Artist"}
+                      {isProductionHead ? "Create Studio Staff" : "Add Team Artist"}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="bg-sidebar border-sidebar-border text-white max-w-lg">
@@ -202,7 +221,7 @@ export default function UserManagementPage() {
                             <SelectContent className="bg-sidebar border-sidebar-border text-white">
                               <SelectItem value="Artist">Artist</SelectItem>
                               <SelectItem value="Lead">Lead</SelectItem>
-                              {canCreateSupervisor && <SelectItem value="Department Supervisor">Supervisor</SelectItem>}
+                              {isProductionHead && <SelectItem value="Department Supervisor">Supervisor</SelectItem>}
                             </SelectContent>
                           </Select>
                         </div>
@@ -211,7 +230,7 @@ export default function UserManagementPage() {
                           <Select 
                             value={formData.departmentId} 
                             onValueChange={(val) => setFormData({...formData, departmentId: val})}
-                            disabled={!canCreateSupervisor}
+                            disabled={!isProductionHead}
                           >
                             <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
                               <SelectValue />
@@ -265,14 +284,14 @@ export default function UserManagementPage() {
               <div className="relative w-80">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Search by name or code..." 
+                  placeholder="Search staff registry..." 
                   className="pl-10 bg-sidebar border-none" 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <Badge variant="outline" className="text-[10px] uppercase font-bold border-sidebar-border">
-                {filteredUsers.length} Active Records in SSoT
+                {filteredUsers.length} Records in Current Context
               </Badge>
             </div>
             <Table>
@@ -283,7 +302,7 @@ export default function UserManagementPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="pr-6 text-right">Actions</TableHead>
+                  <TableHead className="pr-6 text-right">Security Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -328,24 +347,25 @@ export default function UserManagementPage() {
                           size="sm" 
                           variant="ghost" 
                           className="text-muted-foreground hover:text-white"
-                          onClick={() => {
-                            resetUserPassword(user.id);
-                            toast({ title: 'Reset Email Sent', description: `Instructions sent to ${user.email}` });
-                          }}
+                          title="Reset Password (Force change on login)"
+                          onClick={() => handleResetPassword(user)}
                         >
                           <Lock className="w-4 h-4" />
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="text-muted-foreground hover:text-red-500"
-                          onClick={() => {
-                            deactivateUser(user.id);
-                            toast({ variant: 'destructive', title: 'User Deactivated', description: `${user.name} access revoked.` });
-                          }}
-                        >
-                          <UserX className="w-4 h-4" />
-                        </Button>
+                        {canDeactivate && (
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-muted-foreground hover:text-red-500"
+                            title="Deactivate Account"
+                            onClick={() => {
+                              deactivateUser(user.id);
+                              toast({ variant: 'destructive', title: 'User Deactivated', description: `${user.name} access revoked.` });
+                            }}
+                          >
+                            <UserX className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

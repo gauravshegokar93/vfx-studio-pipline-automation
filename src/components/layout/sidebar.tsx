@@ -47,18 +47,18 @@ export function AppSidebar() {
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     
     // Artist Navigation
-    { label: 'My Tasks', icon: CheckSquare, href: '/tasks', roles: ['Artist', 'Lead'] },
-    { label: 'My Reviews', icon: Film, href: '/review', roles: ['Artist'] },
-    { label: 'Daily Standup', icon: FileSpreadsheet, href: '/daily-tracking', roles: ['Artist'] },
+    { label: 'My Tasks', icon: CheckSquare, href: '/tasks', roles: ['Artist', 'Lead', 'Production Head'] },
+    { label: 'My Reviews', icon: Film, href: '/review', roles: ['Artist', 'Production Head'] },
+    { label: 'Daily Standup', icon: FileSpreadsheet, href: '/daily-tracking', roles: ['Artist', 'Production Head'] },
     
     // Lead Navigation
-    { label: 'Team Tasks', icon: UserCheck, href: '/lead-dashboard', roles: ['Lead'] },
-    { label: 'Team Members', icon: Users, href: '/users', roles: ['Lead'] },
+    { label: 'Team Tasks', icon: UserCheck, href: '/lead-dashboard', roles: ['Lead', 'Production Head'] },
+    { label: 'Team Members', icon: Users, href: '/users', roles: ['Lead', 'Production Head'] },
     { label: 'Review Queue', icon: Film, href: '/review', roles: ['Lead', 'Department Supervisor', 'Production Head'] },
-    { label: 'Capacity Planning', icon: Activity, href: '/workload', roles: ['Lead'] },
+    { label: 'Capacity Planning', icon: Activity, href: '/workload', roles: ['Lead', 'Production Head'] },
     
     // Supervisor Navigation
-    { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Department Supervisor'] },
+    { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Department Supervisor', 'Production Head'] },
     { label: 'Department Progress', icon: Gauge, href: '/department-progress', roles: ['Department Supervisor', 'Production Head'] },
     { label: 'Artist Allocation', icon: Users, href: '/workload', roles: ['Department Supervisor', 'Production Head'] },
     { label: 'Calendar', icon: Calendar, href: '/scheduling', roles: ['Department Supervisor', 'Production Head'] },
@@ -68,7 +68,7 @@ export function AppSidebar() {
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
     { label: 'Tasks (SSoT)', icon: LayoutList, href: '/production-queue', roles: ['Production Head'] },
     { label: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
-    { label: 'Staff Directory', icon: ShieldCheck, href: '/users', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Staff Directory', icon: ShieldCheck, href: '/users', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
     
     // Universal Operations
     { label: 'Leave Requests', icon: Calendar, href: '/leaves' },
