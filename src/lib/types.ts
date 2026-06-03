@@ -47,7 +47,7 @@ export interface Shot {
   id: string;
   projectId: string;
   sequenceId: string;
-  shotCode: string;
+  shotCode: string; // This is the primary "Shot Name"
   status: string;
   priority: 'Low' | 'Medium' | 'High' | 'Critical';
   dueDate: string;
@@ -125,13 +125,4 @@ export interface ShotStatusHistory {
   statusTo: string;
   changedById: string;
   changedAt: string;
-}
-
-export interface TaskAssignment {
-  id: string;
-  taskId: string;
-  artistId: string;
-  assignedById: string;
-  assignedAt: string;
-  isCurrent: boolean;
 }

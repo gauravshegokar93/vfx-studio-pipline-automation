@@ -12,8 +12,8 @@ import {
   Timer,
   AlertCircle,
   FileEdit,
-  TrendingUp,
-  Target
+  Target,
+  Film
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,17 +28,15 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
-import { Progress } from '@/components/ui/progress';
 
 export default function ArtistTasksPage() {
-  const { tasks, currentUser, updateTaskStatus, artistUpdateProgress } = useLuminaStore();
+  const { tasks, shots, currentUser, updateTaskStatus, artistUpdateProgress } = useLuminaStore();
   const { toast } = useToast();
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
@@ -51,6 +49,10 @@ export default function ArtistTasksPage() {
   const [etaValue, setEtaValue] = useState('');
 
   const artistTasks = tasks.filter(t => t.assignedArtistId === currentUser?.id || t.assignedArtistId === 'u3');
+  
+  const getShotName = (shotId: string) => {
+    return shots.find(s => s.id === shotId)?.shotCode || "N/A";
+  };
 
   const totalAssignedBid = artistTasks.reduce((acc, t) => acc + t.bidHours, 0);
   const totalUtilizedBid = artistTasks.reduce((acc, t) => acc + t.spentHours, 0);
@@ -78,12 +80,12 @@ export default function ArtistTasksPage() {
   const handleStartTimer = (taskId: string) => {
     setActiveTaskId(taskId);
     updateTaskStatus(taskId, 'In Progress');
-    toast({ title: "Timer Started", description: "Tracking production hours." });
+    toast({ title: "Timer Started", description: `Working on ${getShotName(tasks.find(t => t.id === taskId)?.shotId || "")}` });
   };
 
   const handlePauseTimer = (taskId: string) => {
     setActiveTaskId(null);
-    toast({ title: "Timer Paused", description: "Progress saved." });
+    toast({ title: "Timer Paused", description: "Progress synced to SSoT." });
   };
 
   const handleOpenUpdate = (task: any) => {
@@ -98,7 +100,7 @@ export default function ArtistTasksPage() {
     if (!selectedTaskForUpdate) return;
     artistUpdateProgress(selectedTaskForUpdate.id, progressValue, commentValue, etaValue);
     setUpdateModalOpen(false);
-    toast({ title: "Task Updated", description: "Progress synced to Single Source of Truth." });
+    toast({ title: "Task Updated", description: "Production state synchronized." });
   };
 
   return (
@@ -108,35 +110,42 @@ export default function ArtistTasksPage() {
         <div className="p-8 space-y-8">
           <div className="flex justify-between items-end">
             <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Film className="text-crimson w-5 h-5" />
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Artist Production Hub</span>
+              </div>
               <h1 className="text-4xl font-headline text-white mb-2">My Workbench</h1>
-              <p className="text-muted-foreground">Direct access to your assigned production tasks.</p>
+              <p className="text-muted-foreground">Managing your shot-based pipeline assignments.</p>
             </div>
             {activeTaskId && (
               <div className="flex items-center gap-4 bg-crimson/10 px-6 py-3 rounded-xl border border-crimson/30 animate-pulse">
                 <Timer className="text-crimson w-5 h-5" />
-                <span className="text-2xl font-mono text-crimson font-bold">{formatTime(seconds)}</span>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-crimson font-bold uppercase">Active: {getShotName(tasks.find(t => t.id === activeTaskId)?.shotId || "")}</span>
+                  <span className="text-2xl font-mono text-crimson font-bold leading-none">{formatTime(seconds)}</span>
+                </div>
               </div>
             )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card className="bg-card border-none p-6">
+            <Card className="bg-card border-none p-6 shadow-lg">
               <p className="text-xs font-bold text-muted-foreground uppercase">Assigned Bid</p>
               <h3 className="text-3xl font-headline text-white mt-1">{totalAssignedBid}h</h3>
             </Card>
-            <Card className="bg-card border-none p-6">
-              <p className="text-xs font-bold text-muted-foreground uppercase">Utilized Bid</p>
+            <Card className="bg-card border-none p-6 shadow-lg">
+              <p className="text-xs font-bold text-muted-foreground uppercase">Utilized Hours</p>
               <h3 className="text-3xl font-headline text-blue-500 mt-1">{totalUtilizedBid}h</h3>
             </Card>
-            <Card className="bg-card border-none p-6">
-              <p className="text-xs font-bold text-muted-foreground uppercase">Remaining Bid</p>
+            <Card className="bg-card border-none p-6 shadow-lg">
+              <p className="text-xs font-bold text-muted-foreground uppercase">Remaining Hours</p>
               <h3 className="text-3xl font-headline text-yellow-500 mt-1">{totalRemainingBid}h</h3>
             </Card>
-            <Card className="bg-card border-none p-6">
+            <Card className="bg-card border-none p-6 shadow-lg">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs font-bold text-muted-foreground uppercase">Daily Target</p>
-                  <h3 className="text-3xl font-headline text-green-500 mt-1">8h</h3>
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Productivity Target</p>
+                  <h3 className="text-3xl font-headline text-green-500 mt-1">100%</h3>
                 </div>
                 <Target className="text-green-500 w-5 h-5" />
               </div>
@@ -148,42 +157,50 @@ export default function ArtistTasksPage() {
               <Table>
                 <TableHeader className="bg-sidebar-accent/50">
                   <TableRow className="border-sidebar-border h-14">
-                    <TableHead className="pl-6">Shot</TableHead>
-                    <TableHead>Step</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead>Bid / Spent</TableHead>
-                    <TableHead>Remaining</TableHead>
+                    <TableHead className="pl-6">Shot Name</TableHead>
+                    <TableHead>Task</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Progress</TableHead>
+                    <TableHead>Bid / Utilized</TableHead>
+                    <TableHead>Remaining</TableHead>
                     <TableHead className="pr-6 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {artistTasks.map((task) => {
                     const isActive = activeTaskId === task.id;
+                    const shotName = getShotName(task.shotId);
                     return (
                       <TableRow key={task.id} className={cn(
                         "border-sidebar-border h-20 transition-all",
                         isActive && "bg-crimson/5 border-crimson/30"
                       )}>
-                        <TableCell className="pl-6 font-bold text-white">{task.shotId}</TableCell>
-                        <TableCell><Badge variant="outline" className="text-crimson">{task.pipelineStep}</Badge></TableCell>
-                        <TableCell className="w-40">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[10px] text-muted-foreground font-bold">{task.progress}% Complete</span>
-                            <div className="h-1 w-full bg-sidebar-accent rounded-full overflow-hidden">
-                              <div className="h-full bg-crimson" style={{ width: `${task.progress}%` }} />
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-white font-mono text-xs">{task.bidHours}h / {task.spentHours}h</TableCell>
-                        <TableCell className="text-white font-mono text-xs text-yellow-500">{task.remainingHours}h</TableCell>
+                        <TableCell className="pl-6 font-bold text-white text-lg">{shotName}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-crimson border-crimson/20">{task.pipelineStep}</Badge></TableCell>
                         <TableCell>
                           <Badge className={cn(
                             "uppercase text-[10px] font-bold",
                             task.status === 'In Progress' ? "bg-blue-500/20 text-blue-500" : 
-                            task.status === 'Retake' ? "bg-red-500/20 text-red-500" : "bg-sidebar-accent text-muted-foreground"
+                            task.status === 'Retake' ? "bg-red-500/20 text-red-500" : 
+                            task.status === 'Approved' ? "bg-green-500/20 text-green-500" : "bg-sidebar-accent text-muted-foreground"
                           )}>{task.status}</Badge>
                         </TableCell>
+                        <TableCell className="w-48">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex justify-between items-center text-[10px] font-bold">
+                              <span className="text-muted-foreground">Completion</span>
+                              <span className="text-white">{task.progress}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-sidebar-accent rounded-full overflow-hidden">
+                              <div className="h-full bg-crimson transition-all duration-500" style={{ width: `${task.progress}%` }} />
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-white font-mono text-xs">{task.bidHours}h / {task.spentHours}h</TableCell>
+                        <TableCell className={cn(
+                          "font-mono text-xs font-bold",
+                          task.remainingHours < 0 ? "text-red-500" : "text-yellow-500"
+                        )}>{task.remainingHours}h</TableCell>
                         <TableCell className="pr-6 text-right">
                           <div className="flex justify-end gap-2">
                             <Button size="sm" variant="outline" className="border-sidebar-border hover:bg-sidebar-accent" onClick={() => handleOpenUpdate(task)}>
@@ -194,7 +211,7 @@ export default function ArtistTasksPage() {
                                 <Pause className="w-4 h-4" />
                               </Button>
                             ) : (
-                              <Button size="sm" className="bg-crimson" onClick={() => handleStartTimer(task.id)}>
+                              <Button size="sm" className="bg-crimson hover:bg-crimson/90" onClick={() => handleStartTimer(task.id)}>
                                 <Play className="w-4 h-4" />
                               </Button>
                             )}
@@ -211,9 +228,10 @@ export default function ArtistTasksPage() {
                 </TableBody>
               </Table>
             ) : (
-              <div className="p-20 text-center text-muted-foreground">
-                <AlertCircle className="w-10 h-10 mx-auto mb-4 opacity-20" />
-                <p>No tasks currently assigned to you.</p>
+              <div className="p-24 text-center text-muted-foreground">
+                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                <p className="text-lg">No shots currently assigned to you.</p>
+                <p className="text-sm">Wait for your Lead to allocate tasks from the project pool.</p>
               </div>
             )}
           </Card>
@@ -223,12 +241,12 @@ export default function ArtistTasksPage() {
         <Dialog open={updateModalOpen} onOpenChange={setUpdateModalOpen}>
           <DialogContent className="bg-sidebar border-sidebar-border text-white">
             <DialogHeader>
-              <DialogTitle>Update Progress: {selectedTaskForUpdate?.shotId}</DialogTitle>
+              <DialogTitle>Update Progress: {getShotName(selectedTaskForUpdate?.shotId || "")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-6 py-4">
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <Label>Completion Percentage</Label>
+                  <Label className="text-xs uppercase font-bold text-muted-foreground">Completion Percentage</Label>
                   <span className="text-xs font-bold text-crimson">{progressValue}%</span>
                 </div>
                 <Slider 
@@ -240,7 +258,7 @@ export default function ArtistTasksPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Internal ETA (for Production Head)</Label>
+                <Label className="text-xs uppercase font-bold text-muted-foreground">Internal ETA</Label>
                 <Input 
                   type="date" 
                   className="bg-sidebar-accent border-sidebar-border" 
@@ -250,9 +268,9 @@ export default function ArtistTasksPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Work Description / Blockers</Label>
+                <Label className="text-xs uppercase font-bold text-muted-foreground">Work Log / Comments</Label>
                 <Textarea 
-                  placeholder="What was done today? Any technical blockers?" 
+                  placeholder="Describe your progress or technical blockers..." 
                   className="bg-sidebar-accent border-sidebar-border h-24" 
                   value={commentValue}
                   onChange={(e) => setCommentValue(e.target.value)}
@@ -261,7 +279,7 @@ export default function ArtistTasksPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setUpdateModalOpen(false)}>Cancel</Button>
-              <Button className="bg-crimson px-6" onClick={handleCommitUpdate}>Sync Progress</Button>
+              <Button className="bg-crimson px-6 font-bold" onClick={handleCommitUpdate}>Commit to SSoT</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
