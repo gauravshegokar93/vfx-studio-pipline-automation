@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -18,7 +17,6 @@ import {
   Calendar,
   Bell,
   Clock,
-  History,
   Activity,
   UserCheck,
   FileSpreadsheet,
@@ -43,7 +41,6 @@ export function AppSidebar() {
   const { currentUser, currentRole, setRole } = useLuminaStore();
 
   const navItems = [
-    // Shared Central Dashboard
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     
     // Artist Navigation
@@ -53,7 +50,6 @@ export function AppSidebar() {
     
     // Lead Navigation
     { label: 'Team Tasks', icon: UserCheck, href: '/lead-dashboard', roles: ['Lead', 'Production Head'] },
-    { label: 'Team Members', icon: Users, href: '/users', roles: ['Lead', 'Production Head'] },
     { label: 'Review Queue', icon: Film, href: '/review', roles: ['Lead', 'Department Supervisor', 'Production Head'] },
     { label: 'Capacity Planning', icon: Activity, href: '/workload', roles: ['Lead', 'Production Head'] },
     
@@ -63,12 +59,11 @@ export function AppSidebar() {
     { label: 'Artist Allocation', icon: Users, href: '/workload', roles: ['Department Supervisor', 'Production Head'] },
     { label: 'Calendar', icon: Calendar, href: '/scheduling', roles: ['Department Supervisor', 'Production Head'] },
 
-    // Production Head Navigation
+    // Management & Executive Navigation
+    { label: 'Staff Directory', icon: ShieldCheck, href: '/users', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
     { label: 'Projects', icon: Layers, href: '/projects', roles: ['Production Head'] },
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
-    { label: 'Tasks (SSoT)', icon: LayoutList, href: '/production-queue', roles: ['Production Head'] },
     { label: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
-    { label: 'Staff Directory', icon: ShieldCheck, href: '/users', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
     
     // Universal Operations
     { label: 'Leave Requests', icon: Calendar, href: '/leaves' },
