@@ -1,4 +1,3 @@
-
 "use client";
 
 import { create } from 'zustand';
@@ -36,7 +35,7 @@ interface LuminaState {
 
 export const useLuminaStore = create<LuminaState>((set) => ({
   currentUser: {
-    id: 'u3', // Defaulting to Artist for testing workbench
+    id: 'u3', // Defaulting to Sarah Connor (Artist)
     name: 'Sarah Connor',
     email: 'sarah.c@lumina.vfx',
     role: 'Artist',
@@ -69,7 +68,9 @@ export const useLuminaStore = create<LuminaState>((set) => ({
       ...t,
       progress: t.progress || 0,
       reviewStatus: t.reviewStatus || 'Pending',
-      internalEta: t.internalEta || t.dueDate
+      internalEta: t.internalEta || t.dueDate,
+      leadId: t.leadId || '',
+      assignedArtistId: t.assignedArtistId || '',
     })),
   }),
 
@@ -82,11 +83,11 @@ export const useLuminaStore = create<LuminaState>((set) => ({
   })),
 
   assignTaskLead: (taskId, leadId) => set((state) => ({
-    tasks: state.tasks.map(t => t.id === taskId ? { ...t, leadId, status: 'Assigned' } : t)
+    tasks: state.tasks.map(t => t.id === taskId ? { ...t, leadId, status: t.status === 'Not Started' ? 'Assigned' : t.status } : t)
   })),
 
   assignTaskArtist: (taskId, artistId) => set((state) => ({
-    tasks: state.tasks.map(t => t.id === taskId ? { ...t, assignedArtistId: artistId, status: 'Assigned' } : t)
+    tasks: state.tasks.map(t => t.id === taskId ? { ...t, assignedArtistId: artistId, status: t.status === 'Not Started' || t.status === 'Assigned' ? 'In Progress' : t.status } : t)
   })),
 
   updateTaskStatus: (taskId, status) => set((state) => ({
