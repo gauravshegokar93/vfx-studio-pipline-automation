@@ -11,7 +11,9 @@ import {
   ExternalLink,
   Timer,
   AlertCircle,
-  FileEdit
+  FileEdit,
+  TrendingUp,
+  Target
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
+import { Progress } from '@/components/ui/progress';
 
 export default function ArtistTasksPage() {
   const { tasks, currentUser, updateTaskStatus, artistUpdateProgress } = useLuminaStore();
@@ -48,6 +51,10 @@ export default function ArtistTasksPage() {
   const [etaValue, setEtaValue] = useState('');
 
   const artistTasks = tasks.filter(t => t.assignedArtistId === currentUser?.id || t.assignedArtistId === 'u3');
+
+  const totalAssignedBid = artistTasks.reduce((acc, t) => acc + t.bidHours, 0);
+  const totalUtilizedBid = artistTasks.reduce((acc, t) => acc + t.spentHours, 0);
+  const totalRemainingBid = artistTasks.reduce((acc, t) => acc + t.remainingHours, 0);
 
   useEffect(() => {
     let interval: any;
@@ -112,6 +119,30 @@ export default function ArtistTasksPage() {
             )}
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="bg-card border-none p-6">
+              <p className="text-xs font-bold text-muted-foreground uppercase">Assigned Bid</p>
+              <h3 className="text-3xl font-headline text-white mt-1">{totalAssignedBid}h</h3>
+            </Card>
+            <Card className="bg-card border-none p-6">
+              <p className="text-xs font-bold text-muted-foreground uppercase">Utilized Bid</p>
+              <h3 className="text-3xl font-headline text-blue-500 mt-1">{totalUtilizedBid}h</h3>
+            </Card>
+            <Card className="bg-card border-none p-6">
+              <p className="text-xs font-bold text-muted-foreground uppercase">Remaining Bid</p>
+              <h3 className="text-3xl font-headline text-yellow-500 mt-1">{totalRemainingBid}h</h3>
+            </Card>
+            <Card className="bg-card border-none p-6">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Daily Target</p>
+                  <h3 className="text-3xl font-headline text-green-500 mt-1">8h</h3>
+                </div>
+                <Target className="text-green-500 w-5 h-5" />
+              </div>
+            </Card>
+          </div>
+
           <Card className="bg-card border-none overflow-hidden shadow-2xl">
             {artistTasks.length > 0 ? (
               <Table>
@@ -121,6 +152,7 @@ export default function ArtistTasksPage() {
                     <TableHead>Step</TableHead>
                     <TableHead>Progress</TableHead>
                     <TableHead>Bid / Spent</TableHead>
+                    <TableHead>Remaining</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="pr-6 text-right">Actions</TableHead>
                   </TableRow>
@@ -144,6 +176,7 @@ export default function ArtistTasksPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-white font-mono text-xs">{task.bidHours}h / {task.spentHours}h</TableCell>
+                        <TableCell className="text-white font-mono text-xs text-yellow-500">{task.remainingHours}h</TableCell>
                         <TableCell>
                           <Badge className={cn(
                             "uppercase text-[10px] font-bold",

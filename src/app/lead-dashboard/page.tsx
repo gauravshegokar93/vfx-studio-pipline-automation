@@ -1,14 +1,14 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppSidebar } from '@/components/layout/sidebar';
 import { useLuminaStore } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, CheckCircle2, Clock, AlertCircle, UserPlus, MessageSquare } from 'lucide-react';
+import { Users, CheckCircle2, Clock, AlertCircle, UserPlus, MessageSquare, Gauge, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Dialog, 
@@ -20,16 +20,17 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 
 export default function LeadDashboardPage() {
-  const { tasks, currentRole, currentUser, assignTaskArtist, leadReviewTask } = useLuminaStore();
+  const { tasks, currentUser, assignTaskArtist, leadReviewTask } = useLuminaStore();
   
-  // Lead-specific filtering
-  const leadTasks = tasks.filter(t => t.leadId === 'l1');
+  // Simulated team filtering based on department
+  const leadTasks = tasks.filter(t => t.pipelineStep === 'Comp'); // Mocking lead for Comp
   const teamMembers = [
-    { id: 'u3', name: 'Alex Artist', role: 'Senior Artist', avatar: 'AA' },
-    { id: 'u4', name: 'Zoe Paint', role: 'Paint Artist', avatar: 'ZP' },
-    { id: 'u5', name: 'Ben Roto', role: 'Roto Artist', avatar: 'BR' },
+    { id: 'u3', name: 'Alex Artist', role: 'Senior Artist', avatar: 'AA', capacity: 40, utilized: 32 },
+    { id: 'u4', name: 'Zoe Paint', role: 'Paint Artist', avatar: 'ZP', capacity: 40, utilized: 38 },
+    { id: 'u5', name: 'Ben Roto', role: 'Roto Artist', avatar: 'BR', capacity: 40, utilized: 20 },
   ];
 
   // Review State
@@ -43,6 +44,8 @@ export default function LeadDashboardPage() {
     active: leadTasks.filter(t => t.assignedArtistId && t.status !== 'Approved').length,
     review: leadTasks.filter(t => t.status === 'Pending Review' && t.reviewStatus !== 'Approved').length,
   };
+
+  const teamUtilization = Math.round((teamMembers.reduce((acc, m) => acc + m.utilized, 0) / teamMembers.reduce((acc, m) => acc + m.capacity, 0)) * 100);
 
   const handleOpenReview = (task: any) => {
     setSelectedTaskForReview(task);
@@ -65,27 +68,37 @@ export default function LeadDashboardPage() {
       <AppSidebar />
       <main className="flex-1 overflow-y-auto">
         <div className="p-8 space-y-8">
-          <div>
-            <h1 className="text-4xl font-headline text-white mb-2">Lead Control Center</h1>
-            <p className="text-muted-foreground">Overseeing team tasks and artist assignments.</p>
+          <div className="flex justify-between items-end">
+            <div>
+              <h1 className="text-4xl font-headline text-white mb-2">Lead Control Center</h1>
+              <p className="text-muted-foreground">Overseeing team tasks, capacity, and utilization.</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card className="bg-card border-none p-6">
-              <p className="text-xs font-bold text-muted-foreground uppercase">Managed Tasks</p>
-              <h3 className="text-3xl font-headline text-white mt-1">{stats.total}</h3>
+              <p className="text-xs font-bold text-muted-foreground uppercase">Team Utilization</p>
+              <div className="flex justify-between items-end mt-1">
+                <h3 className={cn("text-3xl font-headline", teamUtilization > 90 ? "text-red-500" : "text-green-500")}>{teamUtilization}%</h3>
+                <Gauge className="w-5 h-5 mb-1" />
+              </div>
             </Card>
             <Card className="bg-card border-none p-6">
-              <p className="text-xs font-bold text-muted-foreground uppercase">Need Artist</p>
-              <h3 className="text-3xl font-headline text-yellow-500 mt-1">{stats.pending}</h3>
+              <p className="text-xs font-bold text-muted-foreground uppercase">Team Capacity</p>
+              <h3 className="text-3xl font-headline text-blue-500 mt-1">120h/wk</h3>
             </Card>
             <Card className="bg-card border-none p-6">
-              <p className="text-xs font-bold text-muted-foreground uppercase">Active</p>
-              <h3 className="text-3xl font-headline text-blue-500 mt-1">{stats.active}</h3>
+              <p className="text-xs font-bold text-muted-foreground uppercase">Active Tasks</p>
+              <h3 className="text-3xl font-headline text-white mt-1">{stats.active}</h3>
             </Card>
             <Card className="bg-card border-none p-6">
-              <p className="text-xs font-bold text-muted-foreground uppercase">In Review</p>
-              <h3 className="text-3xl font-headline text-accent mt-1">{stats.review}</h3>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Team Productivity</p>
+                  <h3 className="text-3xl font-headline text-green-500 mt-1">104%</h3>
+                </div>
+                <Zap className="text-green-500 w-5 h-5" />
+              </div>
             </Card>
           </div>
 
@@ -101,7 +114,7 @@ export default function LeadDashboardPage() {
                   <TableHeader className="bg-sidebar-accent/50">
                     <TableRow className="border-sidebar-border">
                       <TableHead className="pl-6">Shot</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Bid / Utilized</TableHead>
                       <TableHead>Artist</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="pr-6 text-right">Actions</TableHead>
@@ -111,17 +124,12 @@ export default function LeadDashboardPage() {
                     {leadTasks.map(task => (
                       <TableRow key={task.id} className="border-sidebar-border h-16">
                         <TableCell className="pl-6 text-white font-bold">{task.shotId}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1 w-24">
-                            <span className="text-[8px] text-muted-foreground font-bold">{task.progress}%</span>
-                            <Progress value={task.progress} className="h-1" />
-                          </div>
+                        <TableCell className="text-xs text-white">
+                          <span className="font-mono">{task.bidHours}h / {task.spentHours}h</span>
                         </TableCell>
                         <TableCell>
                           {task.assignedArtistId ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-white">Artist {task.assignedArtistId}</span>
-                            </div>
+                            <span className="text-xs text-white">Artist {task.assignedArtistId}</span>
                           ) : (
                             <span className="text-xs text-yellow-500 italic">Unassigned</span>
                           )}
@@ -181,20 +189,22 @@ export default function LeadDashboardPage() {
             <Card className="bg-card border-none shadow-xl">
               <CardHeader>
                 <CardTitle className="text-white text-lg flex items-center gap-2">
-                  <Users className="text-blue-500 w-5 h-5" /> Team Members
+                  <Users className="text-blue-500 w-5 h-5" /> Team Utilization
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 {teamMembers.map(member => {
-                  const activeTasks = leadTasks.filter(t => t.assignedArtistId === member.id).length;
+                  const util = Math.round((member.utilized / member.capacity) * 100);
                   return (
-                    <div key={member.id} className="p-4 bg-sidebar-accent rounded-lg border border-sidebar-border">
-                      <div className="flex justify-between items-center mb-2">
+                    <div key={member.id} className="space-y-2">
+                      <div className="flex justify-between items-center text-xs">
                         <span className="text-white font-bold">{member.name}</span>
-                        <Badge variant="outline" className="text-[10px]">{activeTasks} Active</Badge>
+                        <span className={cn("font-bold", util > 90 ? "text-red-500" : "text-green-500")}>{util}% Utilized</span>
                       </div>
-                      <div className="h-1.5 w-full bg-black rounded-full">
-                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(activeTasks / 5) * 100}%` }} />
+                      <Progress value={util} className="h-1.5" />
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Bid: {member.utilized}h</span>
+                        <span>Capacity: {member.capacity}h</span>
                       </div>
                     </div>
                   );
@@ -235,5 +245,3 @@ export default function LeadDashboardPage() {
     </div>
   );
 }
-
-import { Progress } from '@/components/ui/progress';

@@ -15,7 +15,8 @@ import {
   Film,
   Layers,
   CheckSquare,
-  UserX,
+  Gauge,
+  TrendingUp,
   Plus
 } from 'lucide-react';
 import { 
@@ -27,7 +28,8 @@ import {
   Tooltip, 
   ResponsiveContainer, 
   LineChart,
-  Line
+  Line,
+  Cell
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,9 +52,11 @@ export default function DashboardPage() {
       setData({ util, bidAct, health, artProd });
     };
     loadData();
-  }, []);
+  }, [tasks]);
 
   const hasData = projects.length > 0;
+
+  const studioUtilization = data?.util ? Math.round(data.util.reduce((acc: number, u: any) => acc + u.value, 0) / data.util.length) : 0;
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -66,9 +70,9 @@ export default function DashboardPage() {
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Single Source of Truth</span>
               </div>
               <h1 className="text-4xl font-headline text-white mb-2">
-                {currentRole} Control
+                Studio Control
               </h1>
-              <p className="text-muted-foreground font-body">Real-time studio health aggregated from SQL Server.</p>
+              <p className="text-muted-foreground font-body">Real-time studio health, capacity, and utilization aggregated from SSoT.</p>
             </div>
             {!hasData && (
               <Button className="bg-crimson shadow-lg shadow-crimson/20 font-bold" asChild>
@@ -80,14 +84,11 @@ export default function DashboardPage() {
           {hasData ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-                <StatCard label="Total Projects" value={projects.length} icon={Projector} />
-                <StatCard label="Total Sequences" value={sequences.length} icon={Layers} />
-                <StatCard label="Total Shots" value={shots.length} icon={Film} />
-                <StatCard label="Total Tasks" value={tasks.length} icon={CheckSquare} />
-                <StatCard label="Completed" value={tasks.filter(t => t.status === 'Approved').length} icon={CheckCircle2} iconColor="text-green-500" />
+                <StatCard label="Studio Utilization" value={`${studioUtilization}%`} icon={Gauge} />
                 <StatCard label="Active Artists" value="156" icon={Users} />
-                <StatCard label="Overdue" value="142" icon={AlertCircle} iconColor="text-red-500" />
-                <StatCard label="Pipeline Health" value="OPTIMAL" icon={Activity} />
+                <StatCard label="Total Shots" value={shots.length} icon={Film} />
+                <StatCard label="Pending Review" value={tasks.filter(t => t.status === 'Pending Review').length} icon={Clock} />
+                <StatCard label="Overall Health" value="OPTIMAL" icon={TrendingUp} iconColor="text-green-500" />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -96,7 +97,7 @@ export default function DashboardPage() {
                     <Card className="bg-card border-none shadow-xl">
                       <CardHeader>
                         <CardTitle className="text-white font-headline text-xl">Department Utilization</CardTitle>
-                        <CardDescription>Capacity allocation per department.</CardDescription>
+                        <CardDescription>Capacity allocation per pipeline department.</CardDescription>
                       </CardHeader>
                       <CardContent className="h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -105,7 +106,11 @@ export default function DashboardPage() {
                             <XAxis dataKey="name" stroke="#666" fontSize={12} tickLine={false} axisLine={false} />
                             <YAxis stroke="#666" fontSize={12} tickLine={false} axisLine={false} unit="%" />
                             <Tooltip contentStyle={{ backgroundColor: '#111', border: 'none', borderRadius: '8px' }} />
-                            <Bar dataKey="value" fill="#E6192E" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                               {data.util.map((entry: any, index: number) => (
+                                 <Cell key={`cell-${index}`} fill={entry.value > 90 ? '#E6192E' : '#3266E6'} />
+                               ))}
+                            </Bar>
                           </BarChart>
                         </ResponsiveContainer>
                       </CardContent>
@@ -114,7 +119,7 @@ export default function DashboardPage() {
                     <Card className="bg-card border-none shadow-xl">
                       <CardHeader>
                         <CardTitle className="text-white font-headline text-xl">Bid vs Actual Variance</CardTitle>
-                        <CardDescription>Real-time tracked hours vs client budget.</CardDescription>
+                        <CardDescription>Aggregate hours tracked vs total bid sheet volume.</CardDescription>
                       </CardHeader>
                       <CardContent className="h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
