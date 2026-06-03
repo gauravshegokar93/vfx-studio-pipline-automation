@@ -3,9 +3,9 @@
 
 import React, { useState } from 'react';
 import { AppSidebar } from '@/components/layout/sidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table as TableIcon, Database, CheckCircle2, Loader2, Eye, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { Table as TableIcon, CheckCircle2, Loader2, Eye, FileSpreadsheet, Search } from 'lucide-react';
 import { importService, ImportSummary } from '@/services/importService';
 import { useLuminaStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +14,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useRouter } from 'next/navigation';
 
 export default function ImportPage() {
-  const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<'upload' | 'preview' | 'result'>('upload');
   const [importing, setImporting] = useState(false);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
@@ -24,7 +23,6 @@ export default function ImportPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
       simulateParsing(e.target.files[0]);
     }
   };
@@ -154,18 +152,69 @@ export default function ImportPage() {
             </div>
           )}
 
-          {step === 'result' && (
-            <div className="space-y-6 text-center py-12 animate-in zoom-in">
-              <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle2 className="w-10 h-10 text-green-500" />
+          {step === 'result' && summary && (
+            <div className="space-y-8 animate-in zoom-in">
+              <div className="text-center space-y-4 py-8">
+                <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-8 h-8 text-green-500" />
+                </div>
+                <h2 className="text-3xl font-bold text-white">Bootstrap Successful</h2>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Verification Report: {summary.stats.shotCount} shots and {summary.stats.taskCount} tasks are now live in the store.
+                </p>
               </div>
-              <h2 className="text-3xl font-bold text-white">Studio Hub Initialized</h2>
-              <p className="text-muted-foreground max-w-md mx-auto">
-                {summary?.tasks.length} tasks are now tracked in the single source of truth. Manual Excel tracking has been eliminated.
-              </p>
-              <div className="pt-8 flex justify-center gap-4">
-                <Button variant="outline" onClick={() => router.push('/projects')}>Hierarchy View</Button>
-                <Button className="bg-crimson px-8" onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Verification: First 10 Shots */}
+                <Card className="bg-card border-none">
+                  <div className="p-4 border-b border-sidebar-border flex justify-between items-center">
+                    <h3 className="font-bold text-white text-sm uppercase tracking-widest">First 10 Shots Created</h3>
+                    <Badge variant="outline">{summary.shots.slice(0, 10).length} Records</Badge>
+                  </div>
+                  <div className="max-h-[300px] overflow-y-auto">
+                    <Table>
+                      <TableBody>
+                        {summary.shots.slice(0, 10).map(s => (
+                          <TableRow key={s.id} className="border-sidebar-border h-10">
+                            <TableCell className="text-white font-bold">{s.shotCode}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{s.priority}</TableCell>
+                            <TableCell className="text-right"><Badge className="bg-sidebar-accent">Live</Badge></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Card>
+
+                {/* Verification: First 20 Tasks */}
+                <Card className="bg-card border-none">
+                  <div className="p-4 border-b border-sidebar-border flex justify-between items-center">
+                    <h3 className="font-bold text-white text-sm uppercase tracking-widest">First 20 Tasks Created</h3>
+                    <Badge variant="outline">{summary.tasks.slice(0, 20).length} Records</Badge>
+                  </div>
+                  <div className="max-h-[300px] overflow-y-auto">
+                    <Table>
+                      <TableBody>
+                        {summary.tasks.slice(0, 20).map(t => {
+                          const shot = summary.shots.find(s => s.id === t.shotId);
+                          return (
+                            <TableRow key={t.id} className="border-sidebar-border h-10 text-xs">
+                              <TableCell className="text-white font-bold">{shot?.shotCode}</TableCell>
+                              <TableCell className="text-crimson font-bold">{t.pipelineStep}</TableCell>
+                              <TableCell className="text-white">{t.bidHours}h</TableCell>
+                              <TableCell className="text-muted-foreground truncate max-w-[100px]">{t.taskName}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Card>
+              </div>
+
+              <div className="flex justify-center gap-4 py-8">
+                <Button variant="outline" size="lg" onClick={() => router.push('/projects')}>View Hierarchy</Button>
+                <Button className="bg-crimson px-10 h-12 text-lg font-bold" onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
               </div>
             </div>
           )}

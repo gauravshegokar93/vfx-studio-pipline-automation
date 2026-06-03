@@ -1,7 +1,7 @@
 
-import { ENDPOINTS } from '@/config/api';
+import { useLuminaStore } from '@/lib/store';
 
-const MOCK_DELAY = 700;
+const MOCK_DELAY = 100;
 
 export interface PerformanceMetric {
   name: string;
@@ -12,56 +12,62 @@ export interface PerformanceMetric {
 
 export const analyticsService = {
   getDepartmentPerformance: async (): Promise<PerformanceMetric[]> => {
-    await new Promise(r => setTimeout(r, MOCK_DELAY));
-    return [
-      { name: 'Paint', productivity: 112, bidHours: 450, actualHours: 401 },
-      { name: 'Roto', productivity: 95, bidHours: 1200, actualHours: 1263 },
-      { name: 'Comp', productivity: 124, bidHours: 800, actualHours: 645 },
-      { name: 'Matchmove', productivity: 88, bidHours: 300, actualHours: 341 },
-      { name: 'CG', productivity: 105, bidHours: 2000, actualHours: 1904 },
-    ];
+    const store = useLuminaStore.getState();
+    if (store.tasks.length === 0) {
+      return [
+        { name: 'Paint', productivity: 100, bidHours: 0, actualHours: 0 },
+        { name: 'Roto', productivity: 100, bidHours: 0, actualHours: 0 },
+        { name: 'Comp', productivity: 100, bidHours: 0, actualHours: 0 },
+      ];
+    }
+
+    const depts = ['Roto', 'Paint', 'Comp', 'CG'];
+    return depts.map(dept => {
+      const deptTasks = store.tasks.filter(t => t.pipelineStep === dept);
+      const bid = deptTasks.reduce((acc, t) => acc + t.bidHours, 0);
+      const actual = deptTasks.reduce((acc, t) => acc + t.spentHours, 0);
+      return {
+        name: dept,
+        productivity: actual > 0 ? Math.round((bid / actual) * 100) : 100,
+        bidHours: bid,
+        actualHours: actual
+      };
+    });
   },
 
   getDepartmentUtilization: async () => {
-    await new Promise(r => setTimeout(r, MOCK_DELAY));
-    return [
-      { name: 'Paint', value: 85 },
-      { name: 'Roto', value: 92 },
-      { name: 'Comp', value: 78 },
-      { name: 'Matchmove', value: 65 },
-      { name: 'CG', value: 88 },
-    ];
+    const store = useLuminaStore.getState();
+    const depts = ['Roto', 'Paint', 'Comp', 'CG'];
+    return depts.map(d => ({
+      name: d,
+      value: store.tasks.filter(t => t.pipelineStep === d).length > 0 ? 85 : 0 // Simplified utilization logic
+    }));
   },
 
   getBidVsActual: async () => {
-    await new Promise(r => setTimeout(r, MOCK_DELAY));
+    const store = useLuminaStore.getState();
+    const bid = store.tasks.reduce((acc, t) => acc + t.bidHours, 0);
+    const actual = store.tasks.reduce((acc, t) => acc + t.spentHours, 0);
     return [
-      { name: 'Week 1', bid: 400, actual: 380 },
-      { name: 'Week 2', bid: 450, actual: 480 },
-      { name: 'Week 3', bid: 300, actual: 290 },
-      { name: 'Week 4', bid: 500, actual: 520 },
+      { name: 'Target', bid: bid, actual: 0 },
+      { name: 'Current', bid: bid, actual: actual },
     ];
   },
 
   getProjectHealth: async () => {
-    await new Promise(r => setTimeout(r, MOCK_DELAY));
+    const store = useLuminaStore.getState();
+    const total = store.shots.length;
+    const completed = store.shots.filter(s => s.status === 'Approved').length;
     return [
-      { day: 'Mon', completion: 45 },
-      { day: 'Tue', completion: 52 },
-      { day: 'Wed', completion: 58 },
-      { day: 'Thu', completion: 64 },
-      { day: 'Fri', completion: 72 },
+      { day: 'Start', completion: 0 },
+      { day: 'Current', completion: total > 0 ? (completed / total) * 100 : 0 },
     ];
   },
 
   getArtistProductivity: async () => {
-    await new Promise(r => setTimeout(r, MOCK_DELAY));
     return [
-      { name: 'Artist A', productivity: 120 },
-      { name: 'Artist B', productivity: 105 },
-      { name: 'Artist C', productivity: 95 },
-      { name: 'Artist D', productivity: 110 },
-      { name: 'Artist E', productivity: 85 },
+      { name: 'Sarah Connor', productivity: 105 },
+      { name: 'Alex Rivera', productivity: 98 },
     ];
   }
 };
