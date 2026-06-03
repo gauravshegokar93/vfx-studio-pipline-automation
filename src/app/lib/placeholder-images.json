@@ -1,0 +1,35 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "vfx-project-1",
+      "description": "Epic space battle cinematic",
+      "imageUrl": "https://picsum.photos/seed/vfx1/800/400",
+      "imageHint": "space battle"
+    },
+    {
+      "id": "vfx-project-2",
+      "description": "Urban destruction simulation",
+      "imageUrl": "https://picsum.photos/seed/vfx2/800/400",
+      "imageHint": "city ruin"
+    },
+    {
+      "id": "vfx-project-3",
+      "description": "Digital character animation",
+      "imageUrl": "https://picsum.photos/seed/vfx3/800/400",
+      "imageHint": "cgi character"
+    },
+    {
+      "id": "artist-1",
+      "description": "Senior Comp Artist",
+      "imageUrl": "https://picsum.photos/seed/artist1/200/200",
+      "imageHint": "portrait professional"
+    },
+    {
+      "id": "artist-2",
+      "description": "Lead Matchmove Artist",
+      "imageUrl": "https://picsum.photos/seed/artist2/200/200",
+      "imageHint": "portrait professional"
+    }
+  ]
+}
