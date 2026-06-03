@@ -19,7 +19,8 @@ import {
   CheckCircle,
   AlertCircle,
   FileUp,
-  Loader2
+  Loader2,
+  Key
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -52,6 +53,8 @@ export default function UserManagementPage() {
   const isSupervisor = currentRole === 'Department Supervisor';
   const isLead = currentRole === 'Lead';
 
+  // Visibility Logic: Who can manage staff
+  const canManageStaff = isProductionHead || isSupervisor || isLead;
   const canCreateStaff = isProductionHead || isSupervisor;
   const canDeactivate = isProductionHead || isSupervisor;
 
@@ -66,6 +69,7 @@ export default function UserManagementPage() {
     leadId: '',
   });
 
+  // Filter users based on hierarchical context
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           u.employeeCode.toLowerCase().includes(searchTerm.toLowerCase());
@@ -103,7 +107,7 @@ export default function UserManagementPage() {
 
     toast({
       title: 'User Created',
-      description: `Generated login credentials for ${newUser.name}. Temp Password: Lumina${newUser.employeeCode}!`,
+      description: `Generated login credentials for ${newUser.name}. Force reset active.`,
     });
   };
 
@@ -117,22 +121,28 @@ export default function UserManagementPage() {
         ];
         bulkImportUsers(mockImported);
         setImporting(false);
-        toast({ title: "Import Successful", description: "Employee Master records successfully synchronized with SSoT." });
+        toast({ title: "Import Successful", description: "Employee Master synchronized." });
       }, 1500);
     }
   };
 
   const handleResetPassword = (user: User) => {
-    // Permission check: Lead can only reset their team
+    // Lead can only reset their team
     if (isLead && user.leadId !== currentUser?.id) {
       toast({ variant: 'destructive', title: 'Unauthorized', description: 'You can only reset passwords for your assigned team.' });
       return;
     }
     
+    // Supervisor can only reset their department
+    if (isSupervisor && user.departmentId !== currentUser?.departmentId) {
+      toast({ variant: 'destructive', title: 'Unauthorized', description: 'You can only reset passwords within your department.' });
+      return;
+    }
+
     resetUserPassword(user.id);
     toast({ 
       title: 'Password Reset Issued', 
-      description: `User ${user.name} will be forced to change password on next login.` 
+      description: `User ${user.name} must change password on next login.` 
     });
   };
 
@@ -262,16 +272,10 @@ export default function UserManagementPage() {
                           </Select>
                         </div>
                       )}
-
-                      <div className="p-4 bg-crimson/5 border border-crimson/20 rounded-xl">
-                        <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                          Creation will generate a temporary login and push this user to the SSoT User Registry.
-                        </p>
-                      </div>
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                      <Button className="bg-crimson font-bold" onClick={handleCreateUser}>Generate Credentials</Button>
+                      <Button className="bg-crimson font-bold" onClick={handleCreateUser}>Create Account</Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
@@ -291,7 +295,7 @@ export default function UserManagementPage() {
                 />
               </div>
               <Badge variant="outline" className="text-[10px] uppercase font-bold border-sidebar-border">
-                {filteredUsers.length} Records in Current Context
+                {filteredUsers.length} Records In Current Scope
               </Badge>
             </div>
             <Table>
@@ -302,7 +306,7 @@ export default function UserManagementPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="pr-6 text-right">Security Actions</TableHead>
+                  <TableHead className="pr-6 text-right">Security</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -338,7 +342,7 @@ export default function UserManagementPage() {
                         "text-[8px] uppercase font-bold",
                         user.isActive ? "bg-green-500/20 text-green-500" : "bg-red-500/20 text-red-500"
                       )}>
-                        {user.isActive ? "Active" : "Deactivated"}
+                        {user.isActive ? "Active" : "Revoked"}
                       </Badge>
                     </TableCell>
                     <TableCell className="pr-6 text-right">
@@ -347,20 +351,20 @@ export default function UserManagementPage() {
                           size="sm" 
                           variant="ghost" 
                           className="text-muted-foreground hover:text-white"
-                          title="Reset Password (Force change on login)"
+                          title="Issue Force Password Reset"
                           onClick={() => handleResetPassword(user)}
                         >
-                          <Lock className="w-4 h-4" />
+                          <Key className="w-4 h-4" />
                         </Button>
-                        {canDeactivate && (
+                        {canDeactivate && user.id !== currentUser?.id && (
                           <Button 
                             size="sm" 
                             variant="ghost" 
                             className="text-muted-foreground hover:text-red-500"
-                            title="Deactivate Account"
+                            title="Deactivate Studio Access"
                             onClick={() => {
                               deactivateUser(user.id);
-                              toast({ variant: 'destructive', title: 'User Deactivated', description: `${user.name} access revoked.` });
+                              toast({ variant: 'destructive', title: 'Access Revoked', description: `${user.name} is now inactive.` });
                             }}
                           >
                             <UserX className="w-4 h-4" />
