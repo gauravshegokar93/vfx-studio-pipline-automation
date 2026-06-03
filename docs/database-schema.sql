@@ -1,0 +1,167 @@
+-- VFX Production Intelligence Platform
+-- SQL Server Production Schema (v2.0)
+
+-- 1. Departments
+CREATE TABLE Departments (
+    DepartmentId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    DepartmentName NVARCHAR(100) NOT NULL UNIQUE
+);
+
+-- 2. Users
+CREATE TABLE Users (
+    UserId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    EmployeeCode NVARCHAR(50) NOT NULL UNIQUE,
+    Name NVARCHAR(255) NOT NULL,
+    Email NVARCHAR(255) NOT NULL UNIQUE,
+    PasswordHash NVARCHAR(MAX) NOT NULL,
+    Role NVARCHAR(50) NOT NULL, -- 'Production Head', 'Department Supervisor', 'Lead', 'Artist'
+    DepartmentId UNIQUEIDENTIFIER FOREIGN KEY REFERENCES Departments(DepartmentId),
+    LeadId UNIQUEIDENTIFIER FOREIGN KEY REFERENCES Users(UserId),
+    IsActive BIT DEFAULT 1,
+    CreatedAt DATETIME2 DEFAULT GETDATE(),
+    UpdatedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- 3. UserSessions
+CREATE TABLE UserSessions (
+    SessionId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Users(UserId),
+    RefreshToken NVARCHAR(MAX) NOT NULL,
+    ExpiresAt DATETIME2 NOT NULL,
+    UserAgent NVARCHAR(MAX),
+    IPAddress NVARCHAR(50),
+    IsRevoked BIT DEFAULT 0,
+    CreatedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- 4. Leaves
+CREATE TABLE Leaves (
+    LeaveId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Users(UserId),
+    StartDate DATE NOT NULL,
+    EndDate DATE NOT NULL,
+    Type NVARCHAR(50) NOT NULL, -- 'Vacation', 'Sick', 'Holiday'
+    Status NVARCHAR(50) DEFAULT 'Pending', -- 'Pending', 'Approved', 'Rejected'
+    CreatedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- 5. Projects
+CREATE TABLE Projects (
+    ProjectId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ProjectCode NVARCHAR(50) NOT NULL UNIQUE,
+    ProjectName NVARCHAR(255) NOT NULL,
+    ClientName NVARCHAR(255),
+    Status NVARCHAR(50) DEFAULT 'In-Production',
+    StartDate DATE,
+    EndDate DATE,
+    CreatedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- 6. Sequences
+CREATE TABLE Sequences (
+    SequenceId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ProjectId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Projects(ProjectId),
+    SequenceCode NVARCHAR(50) NOT NULL,
+    UNIQUE(ProjectId, SequenceCode)
+);
+
+-- 7. Shots
+CREATE TABLE Shots (
+    ShotId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    SequenceId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Sequences(SequenceId),
+    ShotCode NVARCHAR(50) NOT NULL,
+    Priority NVARCHAR(20) DEFAULT 'Medium',
+    Status NVARCHAR(50) DEFAULT 'Not Started',
+    DueDate DATE,
+    Description NVARCHAR(MAX),
+    CreatedAt DATETIME2 DEFAULT GETDATE(),
+    UNIQUE(SequenceId, ShotCode)
+);
+
+-- 8. ShotStatusHistory
+CREATE TABLE ShotStatusHistory (
+    HistoryId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ShotId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Shots(ShotId),
+    StatusFrom NVARCHAR(50),
+    StatusTo NVARCHAR(50),
+    ChangedById UNIQUEIDENTIFIER FOREIGN KEY REFERENCES Users(UserId),
+    ChangedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- 9. Tasks
+CREATE TABLE Tasks (
+    TaskId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ShotId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Shots(ShotId),
+    PipelineStep NVARCHAR(50) NOT NULL, -- 'Roto', 'Paint', 'Comp', etc.
+    TaskName NVARCHAR(255),
+    SupervisorId UNIQUEIDENTIFIER FOREIGN KEY REFERENCES Users(UserId),
+    LeadId UNIQUEIDENTIFIER FOREIGN KEY REFERENCES Users(UserId),
+    ArtistId UNIQUEIDENTIFIER FOREIGN KEY REFERENCES Users(UserId),
+    BidHours DECIMAL(10, 2) DEFAULT 0,
+    ActualHours DECIMAL(10, 2) DEFAULT 0,
+    RemainingHours DECIMAL(10, 2) DEFAULT 0,
+    Status NVARCHAR(50) DEFAULT 'Not Started',
+    StartDate DATE,
+    DueDate DATE,
+    Priority NVARCHAR(20) DEFAULT 'Medium',
+    CreatedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- 10. TaskAssignments
+CREATE TABLE TaskAssignments (
+    AssignmentId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    TaskId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Tasks(TaskId),
+    ArtistId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Users(UserId),
+    AssignedById UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Users(UserId),
+    AssignedAt DATETIME2 DEFAULT GETDATE(),
+    IsCurrent BIT DEFAULT 1
+);
+
+-- 11. TimeLogs
+CREATE TABLE TimeLogs (
+    TimeLogId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    TaskId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Tasks(TaskId),
+    ArtistId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Users(UserId),
+    StartTime DATETIME2 NOT NULL,
+    EndTime DATETIME2,
+    TotalMinutes INT DEFAULT 0,
+    CreatedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- 12. Versions
+CREATE TABLE Versions (
+    VersionId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    TaskId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Tasks(TaskId),
+    ArtistId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Users(UserId),
+    VersionNumber INT NOT NULL,
+    FilePath NVARCHAR(MAX),
+    ReviewStatus NVARCHAR(50) DEFAULT 'Pending Review',
+    CreatedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- 13. Comments
+CREATE TABLE Comments (
+    CommentId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    EntityId UNIQUEIDENTIFIER NOT NULL, -- Can be TaskId or VersionId
+    EntityType NVARCHAR(50) NOT NULL,   -- 'Task' or 'Version'
+    UserId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Users(UserId),
+    CommentText NVARCHAR(MAX) NOT NULL,
+    CreatedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- 14. Notifications
+CREATE TABLE Notifications (
+    NotificationId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES Users(UserId),
+    Message NVARCHAR(MAX) NOT NULL,
+    Type NVARCHAR(50), -- 'Assignment', 'Review', 'Deadline'
+    IsRead BIT DEFAULT 0,
+    CreatedAt DATETIME2 DEFAULT GETDATE()
+);
+
+-- Indexes for performance
+CREATE INDEX IX_Tasks_ArtistId ON Tasks(ArtistId);
+CREATE INDEX IX_Shots_SequenceId ON Shots(SequenceId);
+CREATE INDEX IX_TimeLogs_TaskId ON TimeLogs(TaskId);
+CREATE INDEX IX_Notifications_UserId_IsRead ON Notifications(UserId, IsRead);
+CREATE INDEX IX_UserSessions_RefreshToken ON UserSessions(RefreshToken);
