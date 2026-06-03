@@ -1,6 +1,5 @@
-import axios from 'axios';
-import { Task, TaskStatus } from '@/lib/types';
-import { ENDPOINTS } from '@/config/api';
+
+import { Task, TaskStatus, TimeLog } from '@/lib/types';
 
 const MOCK_DELAY = 500;
 
@@ -43,15 +42,33 @@ export const taskService = {
     ];
   },
 
+  startTask: async (taskId: string): Promise<string> => {
+    await new Promise(r => setTimeout(r, 200));
+    // In SQL: INSERT INTO TimeLogs (TaskId, StartTime) ...
+    return 'new-timelog-id';
+  },
+
+  pauseTask: async (timeLogId: string, minutes: number): Promise<boolean> => {
+    await new Promise(r => setTimeout(r, 200));
+    // In SQL: UPDATE TimeLogs SET EndTime = NOW(), TotalMinutes = ...
+    return true;
+  },
+
+  completeTask: async (taskId: string): Promise<boolean> => {
+    await new Promise(r => setTimeout(r, 200));
+    // In SQL: UPDATE Tasks SET Status = 'Pending Review' ...
+    return true;
+  },
+
   updateStatus: async (taskId: string, status: TaskStatus) => {
-    // await axios.patch(`${ENDPOINTS.TASKS}/${taskId}`, { status });
     await new Promise(r => setTimeout(r, 300));
     return { success: true };
   },
 
-  logTime: async (taskId: string, minutes: number) => {
-    // await axios.post(`${ENDPOINTS.TASKS}/${taskId}/time`, { minutes });
-    await new Promise(r => setTimeout(r, 300));
-    return { success: true };
+  getDepartmentQueue: async (deptId: string): Promise<Task[]> => {
+    await new Promise(r => setTimeout(r, MOCK_DELAY));
+    return [
+      { id: 'q1', shotId: 'SH_999', taskName: 'FX Destruction', pipelineStep: 'CG', assignedArtistId: '', leadId: '', supervisorId: '', bidHours: 40, spentHours: 0, remainingHours: 40, status: 'Not Started', startDate: '', dueDate: '2024-06-01', priority: 'High' }
+    ];
   }
 };

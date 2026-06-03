@@ -1,6 +1,5 @@
-import axios from 'axios';
-import { User } from '@/lib/types';
-import { ENDPOINTS } from '@/config/api';
+
+import { User, Leave } from '@/lib/types';
 
 const MOCK_DELAY = 400;
 
@@ -25,5 +24,18 @@ export const userService = {
       isActive: true, 
       avatarUrl: 'https://picsum.photos/seed/sarah/100/100' 
     };
+  },
+
+  submitLeave: async (leave: Omit<Leave, 'id' | 'status'>): Promise<boolean> => {
+    await new Promise(r => setTimeout(r, 300));
+    // In SQL: INSERT INTO Leaves (UserId, StartDate, EndDate, Type, Status) VALUES (..., 'Pending')
+    return true;
+  },
+
+  getLeaves: async (): Promise<Leave[]> => {
+    await new Promise(r => setTimeout(r, MOCK_DELAY));
+    return [
+      { id: 'l1', userId: 'u1', startDate: '2024-06-01', endDate: '2024-06-05', type: 'Vacation', status: 'Approved' }
+    ];
   }
 };

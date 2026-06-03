@@ -12,7 +12,8 @@ import {
   TrendingUp,
   Activity,
   ArrowRight,
-  TrendingDown
+  TrendingDown,
+  Database
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -40,14 +41,6 @@ const deptPerformanceData = [
   { name: 'CG', productivity: 105 },
 ];
 
-const healthData = [
-  { day: 'Mon', active: 120, completed: 45 },
-  { day: 'Tue', active: 115, completed: 52 },
-  { day: 'Wed', active: 125, completed: 38 },
-  { day: 'Thu', active: 110, completed: 64 },
-  { day: 'Fri', active: 95, completed: 72 },
-];
-
 export default function DashboardPage() {
   const { currentRole } = useLuminaStore();
 
@@ -58,30 +51,33 @@ export default function DashboardPage() {
         <div className="p-8 space-y-8">
           <div className="flex justify-between items-end">
             <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Database className="text-crimson w-5 h-5" />
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Single Source of Truth</span>
+              </div>
               <h1 className="text-4xl font-headline text-white mb-2">
-                {currentRole === 'Production Head' ? 'Enterprise Intelligence' : 
+                {currentRole === 'Production Head' ? 'Enterprise Control' : 
                  currentRole === 'Department Supervisor' ? 'Department Control' : 'Team Overview'}
               </h1>
-              <p className="text-muted-foreground font-body">Production analytics and studio pipeline health.</p>
+              <p className="text-muted-foreground font-body">Real-time studio health aggregated from automated artist tracking.</p>
             </div>
             <div className="flex gap-3">
-              <Button variant="outline" className="border-sidebar-border bg-sidebar text-white">Export PDF</Button>
-              <Button className="bg-crimson text-white hover:bg-crimson/90">Studio Report</Button>
+              <Button className="bg-crimson text-white hover:bg-crimson/90">Automated Weekly Report</Button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard label="Pipeline Health" value="Optimal" icon={Activity} />
-            <StatCard label="Avg Productivity" value="108%" icon={TrendingUp} trend={{ value: 4, isPositive: true }} />
+            <StatCard label="Pipeline Health" value="OPTIMAL" icon={Activity} />
+            <StatCard label="Studio Productivity" value="108%" icon={TrendingUp} trend={{ value: 4, isPositive: true }} />
             <StatCard label="Bid Compliance" value="92%" icon={CheckCircle2} />
-            <StatCard label="Over Budget Tasks" value="12" icon={TrendingDown} iconColor="text-red-500" />
+            <StatCard label="Budget Alerts" value="12" icon={TrendingDown} iconColor="text-red-500" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2 bg-card border-none shadow-xl">
               <CardHeader>
-                <CardTitle className="text-white font-headline text-xl">Department Productivity Index</CardTitle>
-                <CardDescription className="text-muted-foreground">Productivity = (Bid / Actual) * 100</CardDescription>
+                <CardTitle className="text-white font-headline text-xl">Auto-Calculated Productivity Index</CardTitle>
+                <CardDescription className="text-muted-foreground">Aggregated from active artist worklogs (Bid / Actual).</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px] w-full">
@@ -103,87 +99,20 @@ export default function DashboardPage() {
 
             <Card className="bg-card border-none shadow-xl">
               <CardHeader>
-                <CardTitle className="text-white font-headline text-xl">Studio Velocity</CardTitle>
-                <CardDescription className="text-muted-foreground">Weekly task completion trend.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={healthData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
-                      <XAxis dataKey="day" stroke="#666" fontSize={12} axisLine={false} tickLine={false} />
-                      <YAxis stroke="#666" fontSize={12} axisLine={false} tickLine={false} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#111', border: 'none', borderRadius: '8px' }}
-                      />
-                      <Line type="monotone" dataKey="active" stroke="#333" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="completed" stroke="#E6192E" strokeWidth={3} dot={{ r: 4, fill: '#E6192E' }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="bg-card border-none shadow-xl">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-white font-headline text-xl">Priority review</CardTitle>
-                  <CardDescription className="text-muted-foreground">High-impact versions awaiting approval.</CardDescription>
-                </div>
-                <Button variant="ghost" className="text-crimson">Review All</Button>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { shot: 'SH_010', task: 'Comp', artist: 'Alex R.', status: 'Pending Review', priority: 'Critical' },
-                    { shot: 'SH_110', task: 'Matchmove', artist: 'Maya S.', status: 'Overdue', priority: 'High' }
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-sidebar-accent/50 rounded-lg group">
-                      <div className="flex gap-3 items-center">
-                         <div className="w-10 h-10 rounded bg-black/40 border border-sidebar-border" />
-                         <div>
-                            <p className="text-sm font-bold text-white">{item.shot} - {item.task}</p>
-                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{item.artist}</p>
-                         </div>
-                      </div>
-                      <Badge className={item.priority === 'Critical' ? 'bg-red-500' : 'bg-yellow-500'}>
-                        {item.priority}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card border-none shadow-xl">
-              <CardHeader>
-                <CardTitle className="text-white font-headline text-xl">Budget Compliance</CardTitle>
-                <CardDescription className="text-muted-foreground">Projects nearing or exceeding bid hours.</CardDescription>
+                <CardTitle className="text-white font-headline text-xl">Allocation Status</CardTitle>
+                <CardDescription className="text-muted-foreground">Automated artist workload balance.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {[
-                    { name: 'The Night Walker', bid: 4500, actual: 4820, risk: 'Over Budget' },
-                    { name: 'Neon Genesis', bid: 12000, actual: 4200, risk: 'Healthy' }
-                  ].map((p, i) => (
-                    <div key={i} className="space-y-2">
-                       <div className="flex justify-between items-center">
-                         <p className="text-sm font-bold text-white">{p.name}</p>
-                         <Badge variant="outline" className={p.risk === 'Over Budget' ? 'text-red-500 border-red-500/20' : 'text-green-500 border-green-500/20'}>
-                           {p.risk}
-                         </Badge>
+                  {['Comp', 'Roto', 'Paint', 'Matchmove'].map((dept) => (
+                    <div key={dept} className="space-y-2">
+                       <div className="flex justify-between text-xs">
+                         <span className="text-white font-bold">{dept}</span>
+                         <span className="text-muted-foreground">85% Assigned</span>
                        </div>
-                       <div className="h-2 w-full bg-sidebar-accent rounded-full overflow-hidden">
-                         <div 
-                           className={cn("h-full rounded-full transition-all duration-1000", p.risk === 'Over Budget' ? 'bg-red-500' : 'bg-crimson')}
-                           style={{ width: `${Math.min(100, (p.actual / p.bid) * 100)}%` }}
-                         />
+                       <div className="h-1.5 w-full bg-sidebar-accent rounded-full">
+                         <div className="h-full bg-crimson rounded-full" style={{ width: '85%' }} />
                        </div>
-                       <p className="text-[10px] text-muted-foreground uppercase font-bold">
-                         {p.actual}h / {p.bid}h Bid
-                       </p>
                     </div>
                   ))}
                 </div>

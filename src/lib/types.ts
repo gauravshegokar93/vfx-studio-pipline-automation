@@ -5,6 +5,8 @@ export type PipelineStep = 'Ingest' | 'Prep' | 'Roto' | 'Paint' | 'Matchmove' | 
 
 export type TaskStatus = 'Not Started' | 'Assigned' | 'In Progress' | 'Pending Review' | 'Client Review' | 'Retake' | 'Approved' | 'Delivered';
 
+export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected';
+
 export interface User {
   id: string;
   employeeCode: string;
@@ -31,12 +33,6 @@ export interface Project {
   endDate: string;
   status: 'Pre-Production' | 'In-Production' | 'Post-Production' | 'Completed' | 'On-Hold';
   thumbnailUrl?: string;
-}
-
-export interface Sequence {
-  id: string;
-  projectId: string;
-  sequenceCode: string;
 }
 
 export interface Shot {
@@ -89,10 +85,29 @@ export interface Version {
   createdAt: string;
 }
 
-export interface Comment {
+export interface Leave {
+  id: string;
+  userId: string;
+  startDate: string;
+  endDate: string;
+  type: 'Vacation' | 'Sick' | 'Holiday';
+  status: LeaveStatus;
+}
+
+export interface ShotStatusHistory {
+  id: string;
+  shotId: string;
+  statusFrom: string;
+  statusTo: string;
+  changedById: string;
+  changedAt: string;
+}
+
+export interface TaskAssignment {
   id: string;
   taskId: string;
-  userId: string;
-  commentText: string;
-  createdAt: string;
+  artistId: string;
+  assignedById: string;
+  assignedAt: string;
+  isCurrent: boolean;
 }
