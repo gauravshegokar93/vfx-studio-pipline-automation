@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -6,39 +5,39 @@ import { AppSidebar } from '@/components/layout/sidebar';
 import { 
   Play, 
   Pause, 
-  Square, 
-  Clock, 
   Send, 
   History,
   AlertTriangle,
-  CheckCircle2,
-  MoreVertical
+  MoreVertical,
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useLuminaStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
+import { taskService } from '@/services/taskService';
+import { Task } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ArtistTasksPage() {
-  const { tasks, updateTaskTimer } = useLuminaStore();
+  const { currentUser } = useLuminaStore();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
 
-  // Simulated active tasks if store is empty
-  const artistTasks = tasks.length > 0 ? tasks : [
-    { 
-      id: 't1', shotId: 'SH_010', taskName: 'Hero Comp', pipelineStep: 'Comp', 
-      bidHours: 16, spentHours: 4.5, status: 'In Progress', priority: 'High',
-      isTimerRunning: false 
-    },
-    { 
-      id: 't2', shotId: 'SH_045', taskName: 'Building Cleanup', pipelineStep: 'Paint', 
-      bidHours: 8, spentHours: 2.1, status: 'Assigned', priority: 'Medium',
-      isTimerRunning: false 
-    }
-  ];
+  useEffect(() => {
+    const fetchTasks = async () => {
+      if (currentUser) {
+        const data = await taskService.getByArtist(currentUser.id);
+        setTasks(data);
+        setLoading(false);
+      }
+    };
+    fetchTasks();
+  }, [currentUser]);
 
   useEffect(() => {
     let interval: any;
@@ -58,9 +57,27 @@ export default function ArtistTasksPage() {
   };
 
   const calculateProductivity = (bid: number, actual: number) => {
-    if (actual === 0) return 0;
+    if (actual === 0) return 100;
     return Math.round((bid / actual) * 100);
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-background overflow-hidden">
+        <AppSidebar />
+        <main className="flex-1 p-8 space-y-8">
+           <Skeleton className="h-12 w-1/3 bg-sidebar-accent" />
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-4">
+                <Skeleton className="h-40 w-full bg-sidebar-accent" />
+                <Skeleton className="h-40 w-full bg-sidebar-accent" />
+              </div>
+              <Skeleton className="h-96 w-full bg-sidebar-accent" />
+           </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -76,10 +93,10 @@ export default function ArtistTasksPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Active Submissions</h3>
-              {artistTasks.map((task: any) => {
+              <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Assigned Tasks</h3>
+              {tasks.map((task) => {
                 const productivity = calculateProductivity(task.bidHours, task.spentHours);
-                const isOverBudget = productivity < 100 && task.spentHours > task.bidHours;
+                const isOverBudget = productivity < 100;
 
                 return (
                   <Card key={task.id} className={cn(
@@ -170,10 +187,10 @@ export default function ArtistTasksPage() {
                 <CardContent className="space-y-6">
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Assigned (32h)</span>
-                      <span className="text-white font-bold">80%</span>
+                      <span className="text-muted-foreground">Capacity (40h/week)</span>
+                      <span className="text-white font-bold">85%</span>
                     </div>
-                    <Progress value={80} className="h-1.5 bg-sidebar-accent" />
+                    <Progress value={85} className="h-1.5 bg-sidebar-accent" />
                   </div>
                   
                   <div className="pt-4 border-t border-sidebar-border">
@@ -181,7 +198,7 @@ export default function ArtistTasksPage() {
                     <div className="space-y-4">
                       {[
                         { shot: 'SH_010', task: 'Comp', date: 'In 2 days', urgency: 'text-red-500' },
-                        { shot: 'SH_025', task: 'Roto', date: 'In 5 days', urgency: 'text-white' }
+                        { shot: 'SH_045', task: 'Paint', date: 'In 5 days', urgency: 'text-white' }
                       ].map((d, i) => (
                         <div key={i} className="flex justify-between items-center">
                           <div className="flex items-center gap-2">

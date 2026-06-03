@@ -1,19 +1,18 @@
-
 "use client";
 
 import React, { useState } from 'react';
 import { AppSidebar } from '@/components/layout/sidebar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileUp, CheckCircle2, AlertCircle, Loader2, Table as TableIcon } from 'lucide-react';
-import { apiService } from '@/services/api';
+import { FileUp, CheckCircle2, Loader2, Table as TableIcon } from 'lucide-react';
+import { importService, ImportSummary } from '@/services/importService';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
 export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ImportSummary | null>(null);
   const { toast } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,11 +25,11 @@ export default function ImportPage() {
     if (!file) return;
     setImporting(true);
     try {
-      const summary = await apiService.projects.importBidSheet(file);
+      const summary = await importService.importBidSheet(file);
       setResult(summary);
       toast({
         title: "Import Successful",
-        description: `Pipeline generated for ${summary.shots} shots.`,
+        description: `Pipeline generated for ${summary.shots} shots across ${summary.sequences} sequences.`,
       });
     } catch (e) {
       toast({
