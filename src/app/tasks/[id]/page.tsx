@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -11,6 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
 import { 
   Clock, 
   History, 
@@ -104,7 +111,7 @@ export default function TaskDetailPage() {
                     "text-3xl font-headline",
                     task.bidHours >= task.spentHours ? "text-green-500" : "text-yellow-500"
                   )}>
-                    {Math.round((task.bidHours / task.spentHours) * 100)}%
+                    {task.spentHours > 0 ? Math.round((task.bidHours / task.spentHours) * 100) : 100}%
                   </p>
                 </div>
               </CardContent>
