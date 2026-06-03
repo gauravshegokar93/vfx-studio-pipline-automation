@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -423,7 +422,7 @@ export default function UserManagementPage() {
                             <TableCell className="font-bold text-white">{u.name}</TableCell>
                             <TableCell className="text-muted-foreground">{u.email}</TableCell>
                             <TableCell className="text-[10px] uppercase font-bold">{u.departmentId}</TableCell>
-                            <TableCell><Badge variant="outline">{u.role}</Badge></SelectItem>
+                            <TableCell><Badge variant="outline">{u.role}</Badge></TableCell>
                             <TableCell><CheckCircle className="text-green-500 w-4 h-4" /></TableCell>
                           </TableRow>
                         ))}
