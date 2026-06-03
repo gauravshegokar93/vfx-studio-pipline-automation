@@ -2,20 +2,28 @@
 "use client";
 
 import { create } from 'zustand';
-import { User, Project, Task, Shot, Department, Role } from './types';
+import { User, Project, Task, Shot, Sequence, Department, Role } from './types';
 
 interface LuminaState {
   currentUser: User | null;
   currentRole: Role;
   projects: Project[];
-  tasks: Task[];
+  sequences: Sequence[];
   shots: Shot[];
+  tasks: Task[];
   departments: Department[];
   
   setCurrentUser: (user: User | null) => void;
   setRole: (role: Role) => void;
-  setProjects: (projects: Project[]) => void;
-  setTasks: (tasks: Task[]) => void;
+  
+  // Single Source of Truth Actions
+  bootstrapStudio: (data: {
+    projects: Project[];
+    sequences: Sequence[];
+    shots: Shot[];
+    tasks: Task[];
+  }) => void;
+  
   updateTaskTimer: (taskId: string, isRunning: boolean) => void;
 }
 
@@ -39,13 +47,20 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     { id: 'dept-cg', name: 'CG' },
   ],
   projects: [],
+  sequences: [],
   shots: [],
   tasks: [],
 
   setCurrentUser: (user) => set({ currentUser: user }),
   setRole: (role) => set({ currentRole: role }),
-  setProjects: (projects) => set({ projects }),
-  setTasks: (tasks) => set({ tasks }),
+  
+  bootstrapStudio: (data) => set({
+    projects: data.projects,
+    sequences: data.sequences,
+    shots: data.shots,
+    tasks: data.tasks,
+  }),
+
   updateTaskTimer: (taskId, isRunning) => set((state) => ({
     tasks: state.tasks.map(t => 
       t.id === taskId 
