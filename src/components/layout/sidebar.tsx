@@ -15,12 +15,19 @@ import {
   BrainCircuit,
   Search,
   Table as TableIcon,
-  LayoutList
+  LayoutList,
+  Calendar,
+  Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useLuminaStore } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  Popover, 
+  PopoverContent, 
+  PopoverTrigger 
+} from '@/components/ui/popover';
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -29,10 +36,12 @@ export function AppSidebar() {
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
+    { label: 'Projects & Hierarchy', icon: Layers, href: '/projects', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Review Queue', icon: Film, href: '/review', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
     { label: 'My Workbench', icon: CheckSquare, href: '/tasks' },
     { label: 'Resource Scheduling', icon: BrainCircuit, href: '/scheduling', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Leaves & Holidays', icon: Calendar, href: '/leaves' },
     { label: 'Analytics', icon: BarChart3, href: '/analytics' },
   ];
 
@@ -42,11 +51,36 @@ export function AppSidebar() {
 
   return (
     <div className="flex flex-col h-screen w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border overflow-hidden shrink-0">
-      <div className="p-6 flex items-center gap-3">
-        <div className="w-8 h-8 bg-crimson rounded-md flex items-center justify-center">
-          <Layers className="text-white w-5 h-5" />
+      <div className="p-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-crimson rounded-md flex items-center justify-center">
+            <Layers className="text-white w-5 h-5" />
+          </div>
+          <span className="font-headline text-xl tracking-tight text-white">LUMINA</span>
         </div>
-        <span className="font-headline text-xl tracking-tight text-white">LUMINA</span>
+        
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-white h-8 w-8">
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-crimson rounded-full animate-pulse"></span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 bg-sidebar border-sidebar-border text-white shadow-2xl p-0 overflow-hidden" align="start">
+             <div className="bg-sidebar-accent p-3 border-b border-sidebar-border">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Notifications</h4>
+             </div>
+             <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
+                {[1,2,3].map(i => (
+                  <div key={i} className="p-3 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer border-b border-sidebar-border/30 last:border-none">
+                    <p className="text-xs text-white mb-1">New task assigned: <span className="text-crimson font-bold">SH_0010 Hero Comp</span></p>
+                    <p className="text-[10px] text-muted-foreground">Assigned by Kyle Reese • 10m ago</p>
+                  </div>
+                ))}
+             </div>
+             <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-muted-foreground hover:text-white rounded-none border-t border-sidebar-border">View All Alerts</Button>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="px-4 py-2">

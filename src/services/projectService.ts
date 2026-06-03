@@ -1,13 +1,10 @@
-import axios from 'axios';
-import { Project } from '@/lib/types';
-import { ENDPOINTS } from '@/config/api';
+
+import { Project, Sequence, Shot } from '@/lib/types';
 
 const MOCK_DELAY = 600;
 
 export const projectService = {
   getAll: async (): Promise<Project[]> => {
-    // Simulated API call
-    // return axios.get(ENDPOINTS.PROJECTS);
     await new Promise(r => setTimeout(r, MOCK_DELAY));
     return [
       { 
@@ -31,16 +28,20 @@ export const projectService = {
     ];
   },
   
-  getById: async (id: string): Promise<Project | null> => {
-    await new Promise(r => setTimeout(r, MOCK_DELAY));
-    return { 
-      id, 
-      projectCode: 'NGHT', 
-      projectName: 'The Night Walker', 
-      clientName: 'Warner Studios', 
-      startDate: '2024-01-01', 
-      endDate: '2024-12-31', 
-      status: 'In-Production' 
-    };
+  getSequences: async (projectId: string): Promise<Sequence[]> => {
+    await new Promise(r => setTimeout(r, 400));
+    return [
+      { id: 'seq1', projectId, sequenceCode: '010' },
+      { id: 'seq2', projectId, sequenceCode: '020' },
+      { id: 'seq3', projectId, sequenceCode: '030' },
+    ];
+  },
+
+  getShots: async (sequenceId: string): Promise<Shot[]> => {
+    await new Promise(r => setTimeout(r, 400));
+    return [
+      { id: 'sh1', projectId: 'p1', sequenceId, shotCode: '0010', status: 'In Progress', priority: 'High', dueDate: '2024-06-01', description: 'Hero space battle' },
+      { id: 'sh2', projectId: 'p1', sequenceId, shotCode: '0020', status: 'Not Started', priority: 'Medium', dueDate: '2024-06-15', description: 'Explosion sequence' },
+    ];
   }
 };

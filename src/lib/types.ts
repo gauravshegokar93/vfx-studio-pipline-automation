@@ -35,6 +35,12 @@ export interface Project {
   thumbnailUrl?: string;
 }
 
+export interface Sequence {
+  id: string;
+  projectId: string;
+  sequenceCode: string;
+}
+
 export interface Shot {
   id: string;
   projectId: string;
@@ -92,6 +98,15 @@ export interface Leave {
   endDate: string;
   type: 'Vacation' | 'Sick' | 'Holiday';
   status: LeaveStatus;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  message: string;
+  type: 'TaskAssignment' | 'ReviewRetake' | 'DeadlineWarning';
+  isRead: boolean;
+  createdAt: string;
 }
 
 export interface ShotStatusHistory {
