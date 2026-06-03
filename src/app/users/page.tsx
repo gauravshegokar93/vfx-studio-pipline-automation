@@ -18,6 +18,7 @@ import {
   Download, 
   Key, 
   UserX, 
+  UserCheck,
   CheckCircle, 
   AlertCircle,
   Loader2,
@@ -47,7 +48,7 @@ import { Role, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function UserManagementPage() {
-  const { currentRole, currentUser, users, userCredentials, addUser, bulkImportUsers, deactivateUser, resetUserPassword, departments } = useLuminaStore();
+  const { currentRole, currentUser, users, userCredentials, addUser, bulkImportUsers, toggleUserStatus, resetUserPassword, departments } = useLuminaStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<User[] | null>(null);
@@ -308,15 +309,32 @@ export default function UserManagementPage() {
                           {departments.find(d => d.id === u.departmentId)?.name || 'Studio'}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={u.isActive ? 'default' : 'destructive'} className="text-[8px] uppercase">
+                          <Badge 
+                            variant={u.isActive ? 'default' : 'secondary'} 
+                            className={cn(
+                              "text-[8px] uppercase",
+                              u.isActive ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"
+                            )}
+                          >
                             {u.isActive ? 'Active' : 'Inactive'}
                           </Badge>
                         </TableCell>
                         <TableCell className="pr-6 text-right">
                           <div className="flex justify-end gap-1">
-                             <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-white" onClick={() => resetUserPassword(u.id)}><Key className="w-4 h-4" /></Button>
+                             <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-white" onClick={() => resetUserPassword(u.id)} title="Reset Password"><Key className="w-4 h-4" /></Button>
                              {u.id !== currentUser?.id && (
-                               <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-red-500" onClick={() => deactivateUser(u.id)}><UserX className="w-4 h-4" /></Button>
+                               <Button 
+                                 size="sm" 
+                                 variant="ghost" 
+                                 className={cn(
+                                   "transition-colors",
+                                   u.isActive ? "text-muted-foreground hover:text-red-500" : "text-green-500 hover:text-green-400"
+                                 )} 
+                                 onClick={() => toggleUserStatus(u.id)}
+                                 title={u.isActive ? "Deactivate Account" : "Activate Account"}
+                               >
+                                 {u.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                               </Button>
                              )}
                           </div>
                         </TableCell>

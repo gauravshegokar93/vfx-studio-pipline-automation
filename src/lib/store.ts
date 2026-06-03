@@ -21,7 +21,7 @@ interface LuminaState {
   // User Management
   addUser: (user: User, credential?: Partial<UserCredential>) => void;
   bulkImportUsers: (users: User[]) => void;
-  deactivateUser: (userId: string) => void;
+  toggleUserStatus: (userId: string) => void;
   resetUserPassword: (userId: string) => void;
   
   // Task Management
@@ -112,8 +112,8 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     };
   }),
 
-  deactivateUser: (userId) => set((state) => ({
-    users: state.users.map(u => u.id === userId ? { ...u, isActive: false } : u)
+  toggleUserStatus: (userId) => set((state) => ({
+    users: state.users.map(u => u.id === userId ? { ...u, isActive: !u.isActive } : u)
   })),
 
   resetUserPassword: (userId) => set((state) => ({
