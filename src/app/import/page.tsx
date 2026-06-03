@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { AppSidebar } from '@/components/layout/sidebar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table as TableIcon, CheckCircle2, Loader2, Eye, FileSpreadsheet, Search } from 'lucide-react';
+import { Table as TableIcon, CheckCircle2, Loader2, Eye, FileSpreadsheet, Search, ClipboardCheck } from 'lucide-react';
 import { importService, ImportSummary } from '@/services/importService';
 import { useLuminaStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
@@ -100,17 +100,22 @@ export default function ImportPage() {
               </div>
 
               <div className="grid grid-cols-4 gap-4">
-                {[
-                  { label: "Projects", val: summary.stats.projectCount },
-                  { label: "Sequences", val: summary.stats.sequenceCount },
-                  { label: "Shots", val: summary.stats.shotCount },
-                  { label: "Tasks", val: summary.stats.taskCount }
-                ].map(stat => (
-                  <Card key={stat.label} className="bg-sidebar border-none p-4">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">{stat.label}</p>
-                    <p className="text-2xl font-headline text-white">{stat.val}</p>
-                  </Card>
-                ))}
+                <Card className="bg-sidebar border-none p-4">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Projects</p>
+                  <p className="text-2xl font-headline text-white">{summary.stats.projectCount}</p>
+                </Card>
+                <Card className="bg-sidebar border-none p-4">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Sequences</p>
+                  <p className="text-2xl font-headline text-white">{summary.stats.sequenceCount}</p>
+                </Card>
+                <Card className="bg-sidebar border-none p-4">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Shots</p>
+                  <p className="text-2xl font-headline text-white">{summary.stats.shotCount}</p>
+                </Card>
+                <Card className="bg-sidebar border-none p-4">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Total Tasks</p>
+                  <p className="text-2xl font-headline text-white">{summary.stats.taskCount}</p>
+                </Card>
               </div>
 
               <Card className="bg-card border-none overflow-hidden">
@@ -118,11 +123,11 @@ export default function ImportPage() {
                   <Table>
                     <TableHeader className="bg-sidebar-accent sticky top-0 z-10">
                       <TableRow className="border-sidebar-border">
-                        <TableHead>Seq / Reel</TableHead>
-                        <TableHead>Shot Name</TableHead>
+                        <TableHead>EP/Reel*</TableHead>
+                        <TableHead>Shot Name*</TableHead>
                         <TableHead>Pipeline Step</TableHead>
                         <TableHead>Bid Hours</TableHead>
-                        <TableHead>Priority</TableHead>
+                        <TableHead>Complexity*</TableHead>
                         <TableHead>ETA</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -132,9 +137,7 @@ export default function ImportPage() {
                         const seq = summary.sequences.find(sq => sq.id === shot?.sequenceId);
                         return (
                           <TableRow key={i} className="border-sidebar-border hover:bg-sidebar-accent/30 transition-colors">
-                            <TableCell className="text-white">
-                              <span className="text-crimson font-bold">NTM</span> / {seq?.sequenceCode}
-                            </TableCell>
+                            <TableCell className="text-white font-mono">{seq?.sequenceCode}</TableCell>
                             <TableCell className="font-bold text-white">{shot?.shotCode}</TableCell>
                             <TableCell><Badge variant="outline" className="text-crimson border-crimson/20">{task.pipelineStep}</Badge></TableCell>
                             <TableCell className="font-mono">{task.bidHours}h</TableCell>
@@ -158,17 +161,35 @@ export default function ImportPage() {
                 <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
                   <CheckCircle2 className="w-8 h-8 text-green-500" />
                 </div>
-                <h2 className="text-3xl font-bold text-white">Bootstrap Successful</h2>
+                <h2 className="text-3xl font-bold text-white">Import Audit Verified</h2>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                  Verification Report: {summary.stats.shotCount} shots and {summary.stats.taskCount} tasks are now live in the store.
+                  {summary.stats.shotCount} shots and {summary.stats.taskCount} tasks are now live in the SSoT.
                 </p>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="bg-sidebar border-none p-6 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Roto Tasks</p>
+                  <p className="text-3xl font-headline text-white">{summary.stats.rotoCount}</p>
+                </Card>
+                <Card className="bg-sidebar border-none p-6 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Paint Tasks</p>
+                  <p className="text-3xl font-headline text-white">{summary.stats.paintCount}</p>
+                </Card>
+                <Card className="bg-sidebar border-none p-6 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Comp Tasks</p>
+                  <p className="text-3xl font-headline text-white">{summary.stats.compCount}</p>
+                </Card>
+                <Card className="bg-sidebar border-none p-6 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">CG Tasks</p>
+                  <p className="text-3xl font-headline text-white">{summary.stats.cgCount}</p>
+                </Card>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Verification: First 10 Shots */}
                 <Card className="bg-card border-none">
                   <div className="p-4 border-b border-sidebar-border flex justify-between items-center">
-                    <h3 className="font-bold text-white text-sm uppercase tracking-widest">First 10 Shots Created</h3>
+                    <h3 className="font-bold text-white text-sm uppercase tracking-widest">First 10 Imported Shots</h3>
                     <Badge variant="outline">{summary.shots.slice(0, 10).length} Records</Badge>
                   </div>
                   <div className="max-h-[300px] overflow-y-auto">
@@ -186,10 +207,9 @@ export default function ImportPage() {
                   </div>
                 </Card>
 
-                {/* Verification: First 20 Tasks */}
                 <Card className="bg-card border-none">
                   <div className="p-4 border-b border-sidebar-border flex justify-between items-center">
-                    <h3 className="font-bold text-white text-sm uppercase tracking-widest">First 20 Tasks Created</h3>
+                    <h3 className="font-bold text-white text-sm uppercase tracking-widest">First 20 Generated Tasks</h3>
                     <Badge variant="outline">{summary.tasks.slice(0, 20).length} Records</Badge>
                   </div>
                   <div className="max-h-[300px] overflow-y-auto">

@@ -11,6 +11,10 @@ export interface ImportSummary {
     sequenceCount: number;
     shotCount: number;
     taskCount: number;
+    rotoCount: number;
+    paintCount: number;
+    compCount: number;
+    cgCount: number;
   };
 }
 
@@ -18,9 +22,16 @@ const MOCK_DELAY = 1200;
 
 export const importService = {
   importBidSheet: async (file: File): Promise<ImportSummary> => {
-    // Simulating the parsing of the NTM Bid Sheet structure:
-    // Client Shot Name, Shot Name, Type, EPI/Reel, Frame Range, etc.
-    // Bids: Roto Bid, Paint Bid, Comp Bid, CG Bid
+    // Parser Audit Mapping:
+    // "Shot Name*" -> Shot.shotCode
+    // "EP/Reel*" -> Sequence.sequenceCode
+    // "Complexity*" -> Shot.priority (mapped to Low, Medium, High, Critical)
+    // "Roto Bid*" -> Task (Step: Roto, Bid: value)
+    // "Paint Bid*" -> Task (Step: Paint, Bid: value)
+    // "Comp*" -> Task (Step: Comp, Bid: value)
+    // "CG*" -> Task (Step: CG, Bid: value)
+    // "ETA" -> Task.dueDate / Shot.dueDate
+    // "Status" -> Shot.status
     
     await new Promise(r => setTimeout(r, MOCK_DELAY));
     
@@ -37,12 +48,12 @@ export const importService = {
       status: 'In-Production'
     }];
 
-    // Mocking rows from the NTM Bid Sheet
+    // Mocking the ACTUAL Excel rows structure as requested for verification
     const rawRows = [
-      { shotName: 'SH_0010', reel: '010', roto: 8, paint: 0, comp: 16, cg: 0, priority: 'High', eta: '2024-08-20' },
-      { shotName: 'SH_0020', reel: '010', roto: 0, paint: 4, comp: 8, cg: 0, priority: 'Medium', eta: '2024-08-25' },
-      { shotName: 'SH_0030', reel: '020', roto: 0, paint: 0, comp: 24, cg: 40, priority: 'Critical', eta: '2024-09-10' },
-      { shotName: 'SH_0040', reel: '020', roto: 12, paint: 12, comp: 12, cg: 0, priority: 'Low', eta: '2024-09-15' },
+      { "Sr No": 1, "Shot Name*": "SH_0010", "EP/Reel*": "010", "Complexity*": "High", "Roto Bid*": 8, "Paint Bid*": 0, "Comp*": 16, "CG*": 0, "ETA": "2024-08-20", "Status": "Not Started" },
+      { "Sr No": 2, "Shot Name*": "SH_0020", "EP/Reel*": "010", "Complexity*": "Medium", "Roto Bid*": 0, "Paint Bid*": 4, "Comp*": 8, "CG*": 0, "ETA": "2024-08-25", "Status": "Not Started" },
+      { "Sr No": 3, "Shot Name*": "SH_0030", "EP/Reel*": "020", "Complexity*": "Critical", "Roto Bid*": 0, "Paint Bid*": 0, "Comp*": 24, "CG*": 40, "ETA": "2024-09-10", "Status": "Not Started" },
+      { "Sr No": 4, "Shot Name*": "SH_0040", "EP/Reel*": "020", "Complexity*": "Low", "Roto Bid*": 12, "Paint Bid*": 12, "Comp*": 12, "CG*": 0, "ETA": "2024-09-15", "Status": "Not Started" },
     ];
 
     const sequences: Sequence[] = [];
@@ -50,16 +61,23 @@ export const importService = {
     const tasks: Task[] = [];
 
     const seqMap = new Map<string, string>();
+    let rotoCount = 0;
+    let paintCount = 0;
+    let compCount = 0;
+    let cgCount = 0;
 
     rawRows.forEach((row, index) => {
+      const reelCode = row["EP/Reel*"];
+      const shotCode = row["Shot Name*"];
+      
       // 1. Manage Sequence
-      if (!seqMap.has(row.reel)) {
-        const seqId = `seq_${row.reel}`;
-        seqMap.set(row.reel, seqId);
+      if (!seqMap.has(reelCode)) {
+        const seqId = `seq_${reelCode}`;
+        seqMap.set(reelCode, seqId);
         sequences.push({
           id: seqId,
           projectId,
-          sequenceCode: row.reel
+          sequenceCode: reelCode
         });
       }
 
@@ -68,20 +86,20 @@ export const importService = {
       shots.push({
         id: shotId,
         projectId,
-        sequenceId: seqMap.get(row.reel)!,
-        shotCode: row.shotName,
-        status: 'Not Started',
-        priority: row.priority as any,
-        dueDate: row.eta,
+        sequenceId: seqMap.get(reelCode)!,
+        shotCode: shotCode,
+        status: row["Status"] || 'Not Started',
+        priority: row["Complexity*"] as any,
+        dueDate: row["ETA"],
         description: `Imported from ${file.name}`
       });
 
       // 3. Create Tasks Dynamically based on Bid columns
       const bidConfigs: { step: PipelineStep; bid: number }[] = [
-        { step: 'Roto', bid: row.roto },
-        { step: 'Paint', bid: row.paint },
-        { step: 'Comp', bid: row.comp },
-        { step: 'CG', bid: row.cg },
+        { step: 'Roto', bid: row["Roto Bid*"] },
+        { step: 'Paint', bid: row["Paint Bid*"] },
+        { step: 'Comp', bid: row["Comp*"] },
+        { step: 'CG', bid: row["CG*"] },
       ];
 
       bidConfigs.forEach(config => {
@@ -90,8 +108,8 @@ export const importService = {
             id: `t_${shotId}_${config.step.toLowerCase()}`,
             shotId: shotId,
             pipelineStep: config.step,
-            taskName: `${config.step} for ${row.shotName}`,
-            assignedArtistId: '', // To be assigned in app
+            taskName: `${config.step} for ${shotCode}`,
+            assignedArtistId: '',
             leadId: 'l1',
             supervisorId: 'sup1',
             bidHours: config.bid,
@@ -99,9 +117,14 @@ export const importService = {
             remainingHours: config.bid,
             status: 'Not Started',
             startDate: '',
-            dueDate: row.eta,
-            priority: row.priority
+            dueDate: row["ETA"],
+            priority: row["Complexity*"]
           });
+
+          if (config.step === 'Roto') rotoCount++;
+          if (config.step === 'Paint') paintCount++;
+          if (config.step === 'Comp') compCount++;
+          if (config.step === 'CG') cgCount++;
         }
       });
     });
@@ -115,7 +138,11 @@ export const importService = {
         projectCount: projects.length,
         sequenceCount: sequences.length,
         shotCount: shots.length,
-        taskCount: tasks.length
+        taskCount: tasks.length,
+        rotoCount,
+        paintCount,
+        compCount,
+        cgCount
       }
     };
   }
