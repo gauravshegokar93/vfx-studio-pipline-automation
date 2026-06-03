@@ -1,10 +1,14 @@
 
 import { Project, Sequence, Shot } from '@/lib/types';
+import { useLuminaStore } from '@/lib/store';
 
-const MOCK_DELAY = 600;
+const MOCK_DELAY = 400;
 
 export const projectService = {
   getAll: async (): Promise<Project[]> => {
+    const store = useLuminaStore.getState();
+    if (store.projects.length > 0) return store.projects;
+
     await new Promise(r => setTimeout(r, MOCK_DELAY));
     return [
       { 
@@ -15,33 +19,25 @@ export const projectService = {
         startDate: '2024-01-01', 
         endDate: '2024-12-31', 
         status: 'In-Production' 
-      },
-      { 
-        id: 'p2', 
-        projectCode: 'NEON', 
-        projectName: 'Neon Genesis Live', 
-        clientName: 'Netflix', 
-        startDate: '2024-03-15', 
-        endDate: '2025-06-30', 
-        status: 'Pre-Production' 
       }
     ];
   },
   
   getSequences: async (projectId: string): Promise<Sequence[]> => {
-    await new Promise(r => setTimeout(r, 400));
-    return [
-      { id: 'seq1', projectId, sequenceCode: '010' },
-      { id: 'seq2', projectId, sequenceCode: '020' },
-      { id: 'seq3', projectId, sequenceCode: '030' },
-    ];
+    const store = useLuminaStore.getState();
+    if (store.sequences.length > 0) {
+      return store.sequences.filter(s => s.projectId === projectId);
+    }
+    await new Promise(r => setTimeout(r, 300));
+    return [];
   },
 
   getShots: async (sequenceId: string): Promise<Shot[]> => {
-    await new Promise(r => setTimeout(r, 400));
-    return [
-      { id: 'sh1', projectId: 'p1', sequenceId, shotCode: '0010', status: 'In Progress', priority: 'High', dueDate: '2024-06-01', description: 'Hero space battle' },
-      { id: 'sh2', projectId: 'p1', sequenceId, shotCode: '0020', status: 'Not Started', priority: 'Medium', dueDate: '2024-06-15', description: 'Explosion sequence' },
-    ];
+    const store = useLuminaStore.getState();
+    if (store.shots.length > 0) {
+      return store.shots.filter(s => s.sequenceId === sequenceId);
+    }
+    await new Promise(r => setTimeout(r, 300));
+    return [];
   }
 };

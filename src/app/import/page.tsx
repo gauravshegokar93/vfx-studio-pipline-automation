@@ -36,7 +36,7 @@ export default function ImportPage() {
       setSummary(data);
       setStep('preview');
     } catch (e) {
-      toast({ variant: "destructive", title: "Parsing Failed", description: "Invalid Excel format." });
+      toast({ variant: "destructive", title: "Parsing Failed", description: "Invalid NTM Bid Sheet format." });
     } finally {
       setImporting(false);
     }
@@ -53,7 +53,7 @@ export default function ImportPage() {
     setStep('result');
     toast({
       title: "Bootstrap Complete",
-      description: "Application state populated from Bid Sheet.",
+      description: "App populated from NTM Bid Sheet. Single Source of Truth active.",
     });
   };
 
@@ -73,14 +73,14 @@ export default function ImportPage() {
                 <div className="w-20 h-20 bg-crimson/10 rounded-full flex items-center justify-center mb-6">
                   <FileSpreadsheet className="w-10 h-10 text-crimson" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2">Select Client Bid Sheet</h3>
+                <h3 className="text-2xl font-bold text-white mb-2">Select NTM Bid Sheet</h3>
                 <p className="text-sm text-muted-foreground mb-10 max-w-sm">
-                  Upload .xlsx or .csv. The system will auto-generate Projects, Sequences, Shots, and Pipeline Tasks.
+                  Upload .xlsx or .csv. The engine will dynamically create Tasks based on Roto, Paint, Comp, and CG bids.
                 </p>
                 <input type="file" id="bid-sheet" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleFileChange} />
                 <label htmlFor="bid-sheet" className="cursor-pointer bg-crimson hover:bg-crimson/90 text-white px-10 py-4 rounded-xl flex items-center gap-3 shadow-lg shadow-crimson/20 transition-all font-bold">
                   {importing ? <Loader2 className="w-5 h-5 animate-spin" /> : <TableIcon className="w-5 h-5" />}
-                  {importing ? "Parsing File..." : "Browse Local Files"}
+                  {importing ? "Processing NTM Format..." : "Upload NTM Bid Sheet"}
                 </label>
               </CardContent>
             </Card>
@@ -91,12 +91,12 @@ export default function ImportPage() {
               <div className="flex justify-between items-center">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
                   <Eye className="text-crimson w-5 h-5" />
-                  Parsed Data Preview ({summary.tasks.length} Tasks Identified)
+                  Extraction Preview ({summary.tasks.length} Tasks Generated)
                 </h3>
                 <div className="flex gap-3">
                   <Button variant="outline" onClick={() => setStep('upload')}>Cancel</Button>
                   <Button className="bg-crimson" onClick={handleConfirmImport}>
-                    Confirm & Bootstrap Studio
+                    Confirm & Bootstrap SQL DB
                   </Button>
                 </div>
               </div>
@@ -120,12 +120,12 @@ export default function ImportPage() {
                   <Table>
                     <TableHeader className="bg-sidebar-accent sticky top-0 z-10">
                       <TableRow className="border-sidebar-border">
-                        <TableHead>Project / Seq</TableHead>
-                        <TableHead>Shot Code</TableHead>
-                        <TableHead>Pipeline Task</TableHead>
+                        <TableHead>Seq / Reel</TableHead>
+                        <TableHead>Shot Name</TableHead>
+                        <TableHead>Pipeline Step</TableHead>
                         <TableHead>Bid Hours</TableHead>
-                        <TableHead>Due Date</TableHead>
                         <TableHead>Priority</TableHead>
+                        <TableHead>ETA</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -135,15 +135,15 @@ export default function ImportPage() {
                         return (
                           <TableRow key={i} className="border-sidebar-border hover:bg-sidebar-accent/30 transition-colors">
                             <TableCell className="text-white">
-                              <span className="text-crimson font-bold">VFX</span> / {seq?.sequenceCode}
+                              <span className="text-crimson font-bold">NTM</span> / {seq?.sequenceCode}
                             </TableCell>
-                            <TableCell className="font-bold">{shot?.shotCode}</TableCell>
-                            <TableCell><Badge variant="outline">{task.pipelineStep}</Badge></TableCell>
-                            <TableCell>{task.bidHours}h</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{task.dueDate}</TableCell>
+                            <TableCell className="font-bold text-white">{shot?.shotCode}</TableCell>
+                            <TableCell><Badge variant="outline" className="text-crimson border-crimson/20">{task.pipelineStep}</Badge></TableCell>
+                            <TableCell className="font-mono">{task.bidHours}h</TableCell>
                             <TableCell>
                                <Badge className={task.priority === 'Critical' ? "bg-red-500/20 text-red-500" : ""}>{task.priority}</Badge>
                             </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{task.dueDate}</TableCell>
                           </TableRow>
                         );
                       })}
@@ -159,13 +159,13 @@ export default function ImportPage() {
               <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle2 className="w-10 h-10 text-green-500" />
               </div>
-              <h2 className="text-3xl font-bold text-white">Studio Bootstrapped Successfully</h2>
+              <h2 className="text-3xl font-bold text-white">Studio Hub Initialized</h2>
               <p className="text-muted-foreground max-w-md mx-auto">
-                All projects, shots, and tasks are now in the SQL database. The single source of truth is active.
+                {summary?.tasks.length} tasks are now tracked in the single source of truth. Manual Excel tracking has been eliminated.
               </p>
               <div className="pt-8 flex justify-center gap-4">
-                <Button variant="outline" onClick={() => router.push('/projects')}>Manage Shots</Button>
-                <Button className="bg-crimson px-8" onClick={() => router.push('/dashboard')}>Go to Live Dashboard</Button>
+                <Button variant="outline" onClick={() => router.push('/projects')}>Hierarchy View</Button>
+                <Button className="bg-crimson px-8" onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
               </div>
             </div>
           )}
