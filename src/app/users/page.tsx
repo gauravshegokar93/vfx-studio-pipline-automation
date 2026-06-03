@@ -17,7 +17,9 @@ import {
   UserX, 
   Search, 
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  FileUp,
+  Loader2
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -41,8 +43,9 @@ import { Role, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function UserManagementPage() {
-  const { currentRole, currentUser, users, addUser, deactivateUser, resetUserPassword, departments } = useLuminaStore();
+  const { currentRole, currentUser, users, addUser, bulkImportUsers, deactivateUser, resetUserPassword, departments } = useLuminaStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [importing, setImporting] = useState(false);
 
   // Permission Logic
   const canCreateSupervisor = currentRole === 'Production Head';
@@ -79,7 +82,8 @@ export default function UserManagementPage() {
       id: `u_${Date.now()}`,
       ...formData,
       isActive: true,
-      avatarUrl: `https://picsum.photos/seed/${formData.employeeCode}/100/100`
+      avatarUrl: `https://picsum.photos/seed/${formData.employeeCode}/100/100`,
+      isFirstLogin: true
     };
 
     addUser(newUser);
@@ -95,8 +99,24 @@ export default function UserManagementPage() {
 
     toast({
       title: 'User Created',
-      description: `Generated login credentials for ${newUser.name}. Temp Password: Lumina2024!`,
+      description: `Generated login credentials for ${newUser.name}. Temp Password: Lumina${newUser.employeeCode}!`,
     });
+  };
+
+  const handleBulkImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImporting(true);
+      // Simulate Excel Parsing
+      setTimeout(() => {
+        const mockImported: User[] = [
+          { id: 'u_imp_1', employeeCode: 'EMP-VFX-099', name: 'Casey Ryback', email: 'casey@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true, isFirstLogin: true },
+          { id: 'u_imp_2', employeeCode: 'EMP-VFX-100', name: 'Jordan Tate', email: 'jordan@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true, isFirstLogin: true },
+        ];
+        bulkImportUsers(mockImported);
+        setImporting(false);
+        toast({ title: "Import Successful", description: "Employee Master records successfully synchronized with SSoT." });
+      }, 1500);
+    }
   };
 
   const leadsInDept = users.filter(u => u.role === 'Lead' && u.departmentId === (formData.departmentId || currentUser?.departmentId));
@@ -116,118 +136,128 @@ export default function UserManagementPage() {
               <p className="text-muted-foreground">Managing studio permissions and hierarchical resource creation.</p>
             </div>
             
-            {canCreateLeadArtist && (
-              <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-crimson h-12 px-8 font-bold shadow-lg shadow-crimson/20">
-                    <UserPlus className="w-5 h-5 mr-2" /> 
-                    {canCreateSupervisor ? "Create Studio Staff" : "Add Team Artist"}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-sidebar border-sidebar-border text-white max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle className="font-headline text-2xl">Create New Production Member</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-5 py-4">
-                    <div className="grid grid-cols-2 gap-4">
+            <div className="flex gap-4">
+              <div className="relative">
+                <input type="file" id="bulk-import" className="hidden" accept=".xlsx,.csv" onChange={handleBulkImport} />
+                <label htmlFor="bulk-import" className="cursor-pointer bg-sidebar-accent border border-sidebar-border hover:bg-sidebar-accent/80 text-white px-6 h-12 flex items-center gap-2 rounded-md font-bold transition-all">
+                  {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+                  {importing ? "Importing Master..." : "Import Employee Master"}
+                </label>
+              </div>
+
+              {canCreateLeadArtist && (
+                <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-crimson h-12 px-8 font-bold shadow-lg shadow-crimson/20">
+                      <UserPlus className="w-5 h-5 mr-2" /> 
+                      {canCreateSupervisor ? "Create Studio Staff" : "Add Team Artist"}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-sidebar border-sidebar-border text-white max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle className="font-headline text-2xl">Create New Production Member</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-5 py-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Full Name</Label>
+                          <Input 
+                            placeholder="e.g. Sarah Connor" 
+                            className="bg-sidebar-accent border-sidebar-border" 
+                            value={formData.name}
+                            onChange={(e) => setFormData({...formData, name: e.target.value})}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Employee Code</Label>
+                          <Input 
+                            placeholder="EMP-VFX-001" 
+                            className="bg-sidebar-accent border-sidebar-border" 
+                            value={formData.employeeCode}
+                            onChange={(e) => setFormData({...formData, employeeCode: e.target.value})}
+                          />
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Full Name</Label>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Email Address</Label>
                         <Input 
-                          placeholder="e.g. Sarah Connor" 
+                          placeholder="artist@lumina.vfx" 
                           className="bg-sidebar-accent border-sidebar-border" 
-                          value={formData.name}
-                          onChange={(e) => setFormData({...formData, name: e.target.value})}
+                          value={formData.email}
+                          onChange={(e) => setFormData({...formData, email: e.target.value})}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Employee Code</Label>
-                        <Input 
-                          placeholder="EMP-VFX-001" 
-                          className="bg-sidebar-accent border-sidebar-border" 
-                          value={formData.employeeCode}
-                          onChange={(e) => setFormData({...formData, employeeCode: e.target.value})}
-                        />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Role</Label>
+                          <Select 
+                            value={formData.role} 
+                            onValueChange={(val: any) => setFormData({...formData, role: val})}
+                          >
+                            <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-sidebar border-sidebar-border text-white">
+                              <SelectItem value="Artist">Artist</SelectItem>
+                              <SelectItem value="Lead">Lead</SelectItem>
+                              {canCreateSupervisor && <SelectItem value="Department Supervisor">Supervisor</SelectItem>}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Department</Label>
+                          <Select 
+                            value={formData.departmentId} 
+                            onValueChange={(val) => setFormData({...formData, departmentId: val})}
+                            disabled={!canCreateSupervisor}
+                          >
+                            <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-sidebar border-sidebar-border text-white">
+                              {departments.map(d => (
+                                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {formData.role === 'Artist' && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Reporting Lead</Label>
+                          <Select 
+                            value={formData.leadId} 
+                            onValueChange={(val) => setFormData({...formData, leadId: val})}
+                          >
+                            <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
+                              <SelectValue placeholder="Select Team Lead" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-sidebar border-sidebar-border text-white">
+                              {leadsInDept.map(l => (
+                                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      <div className="p-4 bg-crimson/5 border border-crimson/20 rounded-xl">
+                        <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                          Creation will generate a temporary login and push this user to the SSoT User Registry.
+                        </p>
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Email Address</Label>
-                      <Input 
-                        placeholder="artist@lumina.vfx" 
-                        className="bg-sidebar-accent border-sidebar-border" 
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Role</Label>
-                        <Select 
-                          value={formData.role} 
-                          onValueChange={(val: any) => setFormData({...formData, role: val})}
-                        >
-                          <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-sidebar border-sidebar-border text-white">
-                            <SelectItem value="Artist">Artist</SelectItem>
-                            <SelectItem value="Lead">Lead</SelectItem>
-                            {canCreateSupervisor && <SelectItem value="Department Supervisor">Supervisor</SelectItem>}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Department</Label>
-                        <Select 
-                          value={formData.departmentId} 
-                          onValueChange={(val) => setFormData({...formData, departmentId: val})}
-                          disabled={!canCreateSupervisor}
-                        >
-                          <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-sidebar border-sidebar-border text-white">
-                            {departments.map(d => (
-                              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {formData.role === 'Artist' && (
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Reporting Lead</Label>
-                        <Select 
-                          value={formData.leadId} 
-                          onValueChange={(val) => setFormData({...formData, leadId: val})}
-                        >
-                          <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
-                            <SelectValue placeholder="Select Team Lead" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-sidebar border-sidebar-border text-white">
-                            {leadsInDept.map(l => (
-                              <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    <div className="p-4 bg-crimson/5 border border-crimson/20 rounded-xl">
-                      <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                        Creation will generate a temporary login and push this user to the SSoT User Registry.
-                      </p>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                    <Button className="bg-crimson font-bold" onClick={handleCreateUser}>Generate Credentials</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                      <Button className="bg-crimson font-bold" onClick={handleCreateUser}>Generate Credentials</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
           </div>
 
           <Card className="bg-card border-none shadow-2xl overflow-hidden">

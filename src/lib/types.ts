@@ -15,10 +15,20 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  designation?: string;
   departmentId: string;
   leadId?: string;
   isActive: boolean;
   avatarUrl?: string;
+  isFirstLogin: boolean;
+}
+
+export interface UserCredential {
+  id: string;
+  userId: string;
+  username: string;
+  tempPassword?: string;
+  lastChangedAt: string;
 }
 
 export interface Department {

@@ -2,12 +2,13 @@
 "use client";
 
 import { create } from 'zustand';
-import { User, Project, Task, Shot, Sequence, Department, Role, ReviewStatus, TaskStatus } from './types';
+import { User, Project, Task, Shot, Sequence, Department, Role, ReviewStatus, TaskStatus, UserCredential } from './types';
 
 interface LuminaState {
   currentUser: User | null;
   currentRole: Role;
   users: User[];
+  userCredentials: UserCredential[];
   projects: Project[];
   sequences: Sequence[];
   shots: Shot[];
@@ -19,6 +20,7 @@ interface LuminaState {
   
   // User Management
   addUser: (user: User) => void;
+  bulkImportUsers: (users: User[]) => void;
   deactivateUser: (userId: string) => void;
   resetUserPassword: (userId: string) => void;
   
@@ -51,17 +53,19 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     employeeCode: 'EMP001',
     departmentId: 'dept-comp',
     isActive: true,
-    avatarUrl: 'https://picsum.photos/seed/sarah/100/100'
+    avatarUrl: 'https://picsum.photos/seed/sarah/100/100',
+    isFirstLogin: false
   },
   currentRole: 'Artist',
   users: [
-    { id: 'u1', employeeCode: 'EMP-PH-01', name: 'John Matrix', email: 'john.m@lumina.vfx', role: 'Production Head', departmentId: 'dept-prod', isActive: true },
-    { id: 'u2', employeeCode: 'EMP-SUP-01', name: 'Kyle Reese', email: 'kyle.r@lumina.vfx', role: 'Department Supervisor', departmentId: 'dept-comp', isActive: true },
-    { id: 'u3', employeeCode: 'EMP-ART-01', name: 'Sarah Connor', email: 'sarah.c@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true },
-    { id: 'u4', employeeCode: 'EMP-LD-01', name: 'Ellen Ripley', email: 'ellen.r@lumina.vfx', role: 'Lead', departmentId: 'dept-comp', isActive: true },
-    { id: 'u5', employeeCode: 'EMP-ART-02', name: 'Alex Rivera', email: 'alex@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true },
-    { id: 'u6', employeeCode: 'EMP-ART-03', name: 'Zoe Chen', email: 'zoe@lumina.vfx', role: 'Artist', departmentId: 'dept-paint', isActive: true },
+    { id: 'u1', employeeCode: 'EMP-PH-01', name: 'John Matrix', email: 'john.m@lumina.vfx', role: 'Production Head', departmentId: 'dept-prod', isActive: true, isFirstLogin: false },
+    { id: 'u2', employeeCode: 'EMP-SUP-01', name: 'Kyle Reese', email: 'kyle.r@lumina.vfx', role: 'Department Supervisor', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
+    { id: 'u3', employeeCode: 'EMP-ART-01', name: 'Sarah Connor', email: 'sarah.c@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
+    { id: 'u4', employeeCode: 'EMP-LD-01', name: 'Ellen Ripley', email: 'ellen.r@lumina.vfx', role: 'Lead', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
+    { id: 'u5', employeeCode: 'EMP-ART-02', name: 'Alex Rivera', email: 'alex@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
+    { id: 'u6', employeeCode: 'EMP-ART-03', name: 'Zoe Chen', email: 'zoe@lumina.vfx', role: 'Artist', departmentId: 'dept-paint', isActive: true, isFirstLogin: false },
   ],
+  userCredentials: [],
   departments: [
     { id: 'dept-paint', name: 'Paint' },
     { id: 'dept-roto', name: 'Roto' },
@@ -77,10 +81,38 @@ export const useLuminaStore = create<LuminaState>((set) => ({
   setCurrentUser: (user) => set({ currentUser: user }),
   setRole: (role) => set({ currentRole: role }),
 
-  addUser: (user) => set((state) => ({ users: [...state.users, user] })),
+  addUser: (user) => set((state) => {
+    const cred: UserCredential = {
+      id: `cred_${Date.now()}`,
+      userId: user.id,
+      username: user.email.split('@')[0],
+      tempPassword: `Lumina${user.employeeCode}!`,
+      lastChangedAt: new Date().toISOString()
+    };
+    return { 
+      users: [...state.users, user],
+      userCredentials: [...state.userCredentials, cred]
+    };
+  }),
+
+  bulkImportUsers: (newUsers) => set((state) => {
+    const newCreds = newUsers.map(u => ({
+      id: `cred_${Math.random()}`,
+      userId: u.id,
+      username: u.email.split('@')[0],
+      tempPassword: `Lumina${u.employeeCode}!`,
+      lastChangedAt: new Date().toISOString()
+    }));
+    return {
+      users: [...state.users, ...newUsers],
+      userCredentials: [...state.userCredentials, ...newCreds]
+    };
+  }),
+
   deactivateUser: (userId) => set((state) => ({
     users: state.users.map(u => u.id === userId ? { ...u, isActive: false } : u)
   })),
+
   resetUserPassword: (userId) => {
     console.log(`Password reset triggered for user: ${userId}`);
   },
