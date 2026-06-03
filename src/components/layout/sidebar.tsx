@@ -21,7 +21,9 @@ import {
   Clock,
   History,
   Activity,
-  UserCheck
+  UserCheck,
+  FileSpreadsheet,
+  Gauge
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -40,6 +42,8 @@ export function AppSidebar() {
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
+    { label: 'Daily Tracking', icon: FileSpreadsheet, href: '/daily-tracking', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Dept Progress', icon: Gauge, href: '/department-progress', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Production Queue', icon: LayoutList, href: '/production-queue', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Hierarchy & Shots', icon: Layers, href: '/projects', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Supervisor Queue', icon: LayoutList, href: '/department-queue', roles: ['Department Supervisor'] },

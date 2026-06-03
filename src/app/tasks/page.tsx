@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   ExternalLink,
   Timer,
-  AlertCircle
+  AlertCircle,
+  FileEdit
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,15 +21,33 @@ import { useLuminaStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Slider } from '@/components/ui/slider';
 
 export default function ArtistTasksPage() {
-  const { tasks, currentUser, updateTaskStatus } = useLuminaStore();
+  const { tasks, currentUser, updateTaskStatus, artistUpdateProgress } = useLuminaStore();
   const { toast } = useToast();
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
 
-  // Artist Dashboard: Only show tasks assigned to this artist
-  const artistTasks = tasks.filter(t => t.assignedArtistId === 'u3'); // Mocking u3 as current artist
+  // Modal State
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [selectedTaskForUpdate, setSelectedTaskForUpdate] = useState<any>(null);
+  const [progressValue, setProgressValue] = useState(0);
+  const [commentValue, setCommentValue] = useState('');
+  const [etaValue, setEtaValue] = useState('');
+
+  const artistTasks = tasks.filter(t => t.assignedArtistId === currentUser?.id || t.assignedArtistId === 'u3');
 
   useEffect(() => {
     let interval: any;
@@ -60,11 +79,19 @@ export default function ArtistTasksPage() {
     toast({ title: "Timer Paused", description: "Progress saved." });
   };
 
-  const stats = {
-    total: artistTasks.length,
-    pending: artistTasks.filter(t => t.status === 'Assigned').length,
-    active: artistTasks.filter(t => t.status === 'In Progress').length,
-    completed: artistTasks.filter(t => t.status === 'Approved').length,
+  const handleOpenUpdate = (task: any) => {
+    setSelectedTaskForUpdate(task);
+    setProgressValue(task.progress || 0);
+    setEtaValue(task.internalEta || task.dueDate);
+    setCommentValue(task.latestArtistComment || '');
+    setUpdateModalOpen(true);
+  };
+
+  const handleCommitUpdate = () => {
+    if (!selectedTaskForUpdate) return;
+    artistUpdateProgress(selectedTaskForUpdate.id, progressValue, commentValue, etaValue);
+    setUpdateModalOpen(false);
+    toast({ title: "Task Updated", description: "Progress synced to Single Source of Truth." });
   };
 
   return (
@@ -85,34 +112,15 @@ export default function ArtistTasksPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card className="bg-card border-none p-6 text-center">
-              <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Assigned</p>
-              <h3 className="text-2xl font-headline text-white">{stats.total}</h3>
-            </Card>
-            <Card className="bg-card border-none p-6 text-center">
-              <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Pending Start</p>
-              <h3 className="text-2xl font-headline text-yellow-500">{stats.pending}</h3>
-            </Card>
-            <Card className="bg-card border-none p-6 text-center">
-              <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Active</p>
-              <h3 className="text-2xl font-headline text-blue-500">{stats.active}</h3>
-            </Card>
-            <Card className="bg-card border-none p-6 text-center">
-              <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Completed</p>
-              <h3 className="text-2xl font-headline text-green-500">{stats.completed}</h3>
-            </Card>
-          </div>
-
           <Card className="bg-card border-none overflow-hidden shadow-2xl">
             {artistTasks.length > 0 ? (
               <Table>
                 <TableHeader className="bg-sidebar-accent/50">
                   <TableRow className="border-sidebar-border h-14">
                     <TableHead className="pl-6">Shot</TableHead>
-                    <TableHead>Pipeline Step</TableHead>
-                    <TableHead>Bid Hours</TableHead>
-                    <TableHead>Spent</TableHead>
+                    <TableHead>Step</TableHead>
+                    <TableHead>Progress</TableHead>
+                    <TableHead>Bid / Spent</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="pr-6 text-right">Actions</TableHead>
                   </TableRow>
@@ -126,18 +134,28 @@ export default function ArtistTasksPage() {
                         isActive && "bg-crimson/5 border-crimson/30"
                       )}>
                         <TableCell className="pl-6 font-bold text-white">{task.shotId}</TableCell>
-                        <TableCell><Badge variant="outline" className="text-crimson border-crimson/20">{task.pipelineStep}</Badge></TableCell>
-                        <TableCell className="text-white font-mono">{task.bidHours}h</TableCell>
-                        <TableCell className="text-muted-foreground font-mono">{task.spentHours}h</TableCell>
+                        <TableCell><Badge variant="outline" className="text-crimson">{task.pipelineStep}</Badge></TableCell>
+                        <TableCell className="w-40">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-muted-foreground font-bold">{task.progress}% Complete</span>
+                            <div className="h-1 w-full bg-sidebar-accent rounded-full overflow-hidden">
+                              <div className="h-full bg-crimson" style={{ width: `${task.progress}%` }} />
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-white font-mono text-xs">{task.bidHours}h / {task.spentHours}h</TableCell>
                         <TableCell>
                           <Badge className={cn(
                             "uppercase text-[10px] font-bold",
                             task.status === 'In Progress' ? "bg-blue-500/20 text-blue-500" : 
-                            task.status === 'Assigned' ? "bg-yellow-500/20 text-yellow-500" : "bg-sidebar-accent text-muted-foreground"
+                            task.status === 'Retake' ? "bg-red-500/20 text-red-500" : "bg-sidebar-accent text-muted-foreground"
                           )}>{task.status}</Badge>
                         </TableCell>
                         <TableCell className="pr-6 text-right">
                           <div className="flex justify-end gap-2">
+                            <Button size="sm" variant="outline" className="border-sidebar-border hover:bg-sidebar-accent" onClick={() => handleOpenUpdate(task)}>
+                              <FileEdit className="w-4 h-4 mr-2" /> Update
+                            </Button>
                             {isActive ? (
                               <Button size="sm" variant="outline" className="border-crimson text-crimson" onClick={() => handlePauseTimer(task.id)}>
                                 <Pause className="w-4 h-4" />
@@ -167,6 +185,53 @@ export default function ArtistTasksPage() {
             )}
           </Card>
         </div>
+
+        {/* Artist Progress Update Dialog */}
+        <Dialog open={updateModalOpen} onOpenChange={setUpdateModalOpen}>
+          <DialogContent className="bg-sidebar border-sidebar-border text-white">
+            <DialogHeader>
+              <DialogTitle>Update Progress: {selectedTaskForUpdate?.shotId}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label>Completion Percentage</Label>
+                  <span className="text-xs font-bold text-crimson">{progressValue}%</span>
+                </div>
+                <Slider 
+                  value={[progressValue]} 
+                  onValueChange={(val) => setProgressValue(val[0])} 
+                  max={100} 
+                  step={5}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Internal ETA (for Production Head)</Label>
+                <Input 
+                  type="date" 
+                  className="bg-sidebar-accent border-sidebar-border" 
+                  value={etaValue} 
+                  onChange={(e) => setEtaValue(e.target.value)} 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Work Description / Blockers</Label>
+                <Textarea 
+                  placeholder="What was done today? Any technical blockers?" 
+                  className="bg-sidebar-accent border-sidebar-border h-24" 
+                  value={commentValue}
+                  onChange={(e) => setCommentValue(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setUpdateModalOpen(false)}>Cancel</Button>
+              <Button className="bg-crimson px-6" onClick={handleCommitUpdate}>Sync Progress</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

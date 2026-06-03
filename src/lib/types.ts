@@ -5,6 +5,8 @@ export type PipelineStep = 'Ingest' | 'Prep' | 'Roto' | 'Paint' | 'Matchmove' | 
 
 export type TaskStatus = 'Not Started' | 'Assigned' | 'In Progress' | 'Pending Review' | 'Client Review' | 'Retake' | 'Approved' | 'Delivered';
 
+export type ReviewStatus = 'Pending' | 'In Review' | 'Changes Requested' | 'Approved';
+
 export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected';
 
 export interface User {
@@ -64,6 +66,13 @@ export interface Task {
   spentHours: number;
   remainingHours: number;
   status: TaskStatus;
+  progress: number; // 0-100
+  internalEta: string;
+  reviewerId?: string;
+  reviewStatus: ReviewStatus;
+  latestArtistComment?: string;
+  latestLeadComment?: string;
+  latestSupComment?: string;
   startDate: string;
   dueDate: string;
   priority: string;
