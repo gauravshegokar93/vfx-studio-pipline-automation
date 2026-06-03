@@ -25,6 +25,11 @@ interface LuminaState {
   }) => void;
   
   updateTaskTimer: (taskId: string, isRunning: boolean) => void;
+  
+  // Assignment Actions
+  assignTaskLead: (taskId: string, leadId: string) => void;
+  assignTaskArtist: (taskId: string, artistId: string) => void;
+  updateTaskStatus: (taskId: string, status: any) => void;
 }
 
 export const useLuminaStore = create<LuminaState>((set) => ({
@@ -67,5 +72,17 @@ export const useLuminaStore = create<LuminaState>((set) => ({
         ? { ...t, isTimerRunning: isRunning, lastTimerStart: isRunning ? Date.now() : t.lastTimerStart } 
         : t
     )
+  })),
+
+  assignTaskLead: (taskId, leadId) => set((state) => ({
+    tasks: state.tasks.map(t => t.id === taskId ? { ...t, leadId, status: 'Assigned' as any } : t)
+  })),
+
+  assignTaskArtist: (taskId, artistId) => set((state) => ({
+    tasks: state.tasks.map(t => t.id === taskId ? { ...t, assignedArtistId: artistId, status: 'Assigned' as any } : t)
+  })),
+
+  updateTaskStatus: (taskId, status) => set((state) => ({
+    tasks: state.tasks.map(t => t.id === taskId ? { ...t, status } : t)
   })),
 }));

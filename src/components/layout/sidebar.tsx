@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -19,7 +20,8 @@ import {
   Bell,
   Clock,
   History,
-  Activity
+  Activity,
+  UserCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -40,9 +42,10 @@ export function AppSidebar() {
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
     { label: 'Production Queue', icon: LayoutList, href: '/production-queue', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Hierarchy & Shots', icon: Layers, href: '/projects', roles: ['Production Head', 'Department Supervisor'] },
-    { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Supervisor Queue', icon: LayoutList, href: '/department-queue', roles: ['Department Supervisor'] },
+    { label: 'Lead Dashboard', icon: UserCheck, href: '/lead-dashboard', roles: ['Lead'] },
+    { label: 'My Workbench', icon: CheckSquare, href: '/tasks', roles: ['Artist', 'Lead'] },
     { label: 'Review Queue', icon: Film, href: '/review', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
-    { label: 'My Workbench', icon: CheckSquare, href: '/tasks' },
     { label: 'Workload & Capacity', icon: Users, href: '/workload', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Version History', icon: History, href: '/versions', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
     { label: 'Resource Scheduling', icon: BrainCircuit, href: '/scheduling', roles: ['Production Head', 'Department Supervisor'] },
