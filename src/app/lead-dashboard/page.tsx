@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -22,18 +23,13 @@ import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 
 export default function LeadDashboardPage() {
-  const { tasks, shots, currentUser, assignTaskArtist, leadReviewTask, currentRole } = useLuminaStore();
+  const { tasks, shots, currentUser, assignTaskArtist, leadReviewTask, users } = useLuminaStore();
   
-  // Filter tasks delegated to this lead (or those in their department for simulation)
-  // In a real app, we'd filter by leadId === currentUser.id
-  const leadTasks = tasks.filter(t => t.pipelineStep === 'Comp'); // Simulated: Current lead is Comp Lead
+  // Filter tasks delegated to this lead (by department for simulation)
+  const leadTasks = tasks.filter(t => t.pipelineStep === 'Comp'); 
   
-  const teamMembers = [
-    { id: 'u3', name: 'Sarah Connor', role: 'Senior Artist', avatar: 'SC', capacity: 40, utilized: 32, status: 'Available' },
-    { id: 'u4', name: 'Kyle Reese', role: 'Comp Artist', avatar: 'KR', capacity: 40, utilized: 42, status: 'Busy' },
-    { id: 'u5', name: 'John Matrix', role: 'Junior Artist', avatar: 'JM', capacity: 40, utilized: 16, status: 'Available' },
-    { id: 'u6', name: 'Ellen Ripley', role: 'Senior Artist', avatar: 'ER', capacity: 40, utilized: 0, status: 'Leave' },
-  ];
+  // Get team members from the store instead of static mock
+  const teamMembers = users.filter(u => u.departmentId === 'dept-comp' && (u.role === 'Artist' || u.role === 'Lead'));
 
   const getShotName = (shotId: string) => shots.find(s => s.id === shotId)?.shotCode || "N/A";
 
@@ -143,7 +139,7 @@ export default function LeadDashboardPage() {
                           {task.assignedArtistId ? (
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 rounded-full bg-crimson/20 text-crimson text-[8px] flex items-center justify-center font-bold">
-                                {teamMembers.find(m => m.id === task.assignedArtistId)?.avatar || 'AR'}
+                                {teamMembers.find(m => m.id === task.assignedArtistId)?.name.charAt(0) || 'AR'}
                               </div>
                               <span className="text-sm text-white">
                                 {teamMembers.find(m => m.id === task.assignedArtistId)?.name || `Artist ${task.assignedArtistId}`}
@@ -192,9 +188,12 @@ export default function LeadDashboardPage() {
                                     <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest px-1">Team Availability & Capacity</p>
                                     <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                                       {teamMembers.map(member => {
-                                        const remaining = member.capacity - member.utilized;
-                                        const isOverloaded = member.utilized > member.capacity;
-                                        const isOnLeave = member.status === 'Leave';
+                                        const memberTasks = tasks.filter(t => t.assignedArtistId === member.id);
+                                        const utilized = memberTasks.reduce((acc, t) => acc + t.bidHours, 0);
+                                        const capacity = 40;
+                                        const remaining = capacity - utilized;
+                                        const isOverloaded = utilized > capacity;
+                                        const isOnLeave = !member.isActive;
 
                                         return (
                                           <div key={member.id} className={cn(
@@ -208,7 +207,7 @@ export default function LeadDashboardPage() {
                                           }}>
                                             <div className="flex items-center gap-4">
                                               <div className="w-12 h-12 bg-sidebar-accent border border-sidebar-border rounded-xl flex items-center justify-center text-sm font-bold group-hover:bg-crimson group-hover:text-white transition-colors">
-                                                {member.avatar}
+                                                {member.name.charAt(0)}
                                               </div>
                                               <div>
                                                 <p className="font-bold text-white text-sm">{member.name}</p>
@@ -217,19 +216,19 @@ export default function LeadDashboardPage() {
                                                     "text-[8px] uppercase font-bold h-4",
                                                     isOnLeave ? "bg-red-500/20 text-red-500" :
                                                     isOverloaded ? "bg-orange-500/20 text-orange-500" : "bg-green-500/20 text-green-500"
-                                                  )}>{member.status}</Badge>
+                                                  )}>{isOnLeave ? "Inactive" : "Available"}</Badge>
                                                   <span className="text-[10px] text-muted-foreground">{member.role}</span>
                                                 </div>
                                               </div>
                                             </div>
                                             <div className="text-right space-y-2 min-w-[140px]">
                                               <div className="flex justify-between text-[10px]">
-                                                <span className="text-muted-foreground">Load: {member.utilized}h / {member.capacity}h</span>
+                                                <span className="text-muted-foreground">Load: {utilized}h / {capacity}h</span>
                                                 <span className={cn("font-bold", isOverloaded ? "text-red-500" : "text-white")}>
                                                   {isOverloaded ? "OVERLOAD" : `${remaining}h avail`}
                                                 </span>
                                               </div>
-                                              <Progress value={(member.utilized / member.capacity) * 100} className={cn("h-1.5", isOverloaded ? "bg-red-500/20" : "bg-sidebar-accent")} />
+                                              <Progress value={(utilized / capacity) * 100} className={cn("h-1.5", isOverloaded ? "bg-red-500/20" : "bg-sidebar-accent")} />
                                               {isOverloaded && <p className="text-[8px] text-red-500 font-bold uppercase flex items-center justify-end gap-1"><AlertTriangle className="w-2 h-2" /> Risk Detected</p>}
                                             </div>
                                           </div>
@@ -259,7 +258,10 @@ export default function LeadDashboardPage() {
                 </CardHeader>
                 <div className="space-y-8">
                   {teamMembers.map(member => {
-                    const util = Math.round((member.utilized / member.capacity) * 100);
+                    const memberTasks = tasks.filter(t => t.assignedArtistId === member.id);
+                    const utilized = memberTasks.reduce((acc, t) => acc + t.bidHours, 0);
+                    const capacity = 40;
+                    const util = Math.round((utilized / capacity) * 100);
                     const isOverloaded = util > 100;
                     return (
                       <div key={member.id} className="space-y-3">
@@ -272,8 +274,8 @@ export default function LeadDashboardPage() {
                         </div>
                         <Progress value={util} className={cn("h-2 bg-sidebar-accent")} />
                         <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-                          <span>Bid Assigned: {member.utilized}h</span>
-                          <span>Weekly Cap: {member.capacity}h</span>
+                          <span>Bid Assigned: {utilized}h</span>
+                          <span>Weekly Cap: {capacity}h</span>
                         </div>
                       </div>
                     );
@@ -296,7 +298,7 @@ export default function LeadDashboardPage() {
 
         {/* Lead Review Dialog */}
         <Dialog open={reviewModalOpen} onOpenChange={setReviewModalOpen}>
-          <DialogContent className="bg-sidebar border-sidebar-border text-white max-w-xl">
+          <DialogContent className="bg-sidebar border-sidebar-border text-white max-xl">
             <DialogHeader>
               <DialogTitle className="text-2xl font-headline flex items-center gap-3">
                 <MessageSquare className="text-accent" /> Lead QC: {getShotName(selectedTaskForReview?.shotId || "") || "N/A"}

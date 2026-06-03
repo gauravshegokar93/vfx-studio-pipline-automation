@@ -1,3 +1,4 @@
+
 "use client";
 
 import { create } from 'zustand';
@@ -6,6 +7,7 @@ import { User, Project, Task, Shot, Sequence, Department, Role, ReviewStatus, Ta
 interface LuminaState {
   currentUser: User | null;
   currentRole: Role;
+  users: User[];
   projects: Project[];
   sequences: Sequence[];
   shots: Shot[];
@@ -14,6 +16,11 @@ interface LuminaState {
   
   setCurrentUser: (user: User | null) => void;
   setRole: (role: Role) => void;
+  
+  // User Management
+  addUser: (user: User) => void;
+  deactivateUser: (userId: string) => void;
+  resetUserPassword: (userId: string) => void;
   
   bootstrapStudio: (data: {
     projects: Project[];
@@ -27,7 +34,6 @@ interface LuminaState {
   assignTaskArtist: (taskId: string, artistId: string) => void;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   
-  // New Production-Driven Actions
   artistUpdateProgress: (taskId: string, progress: number, comment: string, internalEta: string) => void;
   leadReviewTask: (taskId: string, status: ReviewStatus, comment: string) => void;
   supervisorApproveTask: (taskId: string, status: ReviewStatus, comment: string) => void;
@@ -35,7 +41,7 @@ interface LuminaState {
 
 export const useLuminaStore = create<LuminaState>((set) => ({
   currentUser: {
-    id: 'u3', // Defaulting to Sarah Connor (Artist)
+    id: 'u3',
     name: 'Sarah Connor',
     email: 'sarah.c@lumina.vfx',
     role: 'Artist',
@@ -45,6 +51,12 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     avatarUrl: 'https://picsum.photos/seed/sarah/100/100'
   },
   currentRole: 'Artist',
+  users: [
+    { id: 'u1', employeeCode: 'EMP-PH-01', name: 'John Matrix', email: 'john.m@lumina.vfx', role: 'Production Head', departmentId: 'dept-prod', isActive: true },
+    { id: 'u2', employeeCode: 'EMP-SUP-01', name: 'Kyle Reese', email: 'kyle.r@lumina.vfx', role: 'Department Supervisor', departmentId: 'dept-comp', isActive: true },
+    { id: 'u3', employeeCode: 'EMP-ART-01', name: 'Sarah Connor', email: 'sarah.c@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true },
+    { id: 'u4', employeeCode: 'EMP-LD-01', name: 'Ellen Ripley', email: 'ellen.r@lumina.vfx', role: 'Lead', departmentId: 'dept-comp', isActive: true },
+  ],
   departments: [
     { id: 'dept-paint', name: 'Paint' },
     { id: 'dept-roto', name: 'Roto' },
@@ -59,6 +71,15 @@ export const useLuminaStore = create<LuminaState>((set) => ({
 
   setCurrentUser: (user) => set({ currentUser: user }),
   setRole: (role) => set({ currentRole: role }),
+
+  addUser: (user) => set((state) => ({ users: [...state.users, user] })),
+  deactivateUser: (userId) => set((state) => ({
+    users: state.users.map(u => u.id === userId ? { ...u, isActive: false } : u)
+  })),
+  resetUserPassword: (userId) => {
+    // Simulated: Trigger password reset email or log temporary password
+    console.log(`Password reset triggered for user: ${userId}`);
+  },
   
   bootstrapStudio: (data) => set({
     projects: data.projects,

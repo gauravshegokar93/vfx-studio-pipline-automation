@@ -26,7 +26,8 @@ import {
   Gauge,
   UserCircle,
   Settings,
-  ClipboardList
+  ShieldCheck,
+  Briefcase
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -42,10 +43,6 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { currentUser, currentRole, setRole } = useLuminaStore();
 
-  /**
-   * Role-Based Navigation Matrix
-   * Maps roles to specific labels and access requirements
-   */
   const navItems = [
     // Shared
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
@@ -54,6 +51,7 @@ export function AppSidebar() {
     { label: 'Projects', icon: Layers, href: '/projects', roles: ['Production Head'] },
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
     { label: 'Tasks (SSoT)', icon: LayoutList, href: '/production-queue', roles: ['Production Head'] },
+    { label: 'Staff Directory', icon: ShieldCheck, href: '/users', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
     
     // Supervisor (Department Strategy)
@@ -77,7 +75,6 @@ export function AppSidebar() {
     { label: 'Profile & Settings', icon: Settings, href: '/settings' },
   ];
 
-  // Filter items based on the current simulated role
   const filteredItems = navItems.filter(item => 
     !item.roles || item.roles.includes(currentRole)
   );
