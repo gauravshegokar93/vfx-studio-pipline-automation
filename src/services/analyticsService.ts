@@ -85,10 +85,12 @@ export const analyticsService = {
       
       return {
         name: dept,
+        utilization: Math.min(100, Math.round((dTasks.length / 20) * 100)),
         capacityUtilization: Math.min(100, Math.round((dTasks.length / 20) * 100)),
         efficiency: actual > 0 ? Math.round((bid / actual) * 100) : 100,
         bidHours: bid,
-        actualHours: actual
+        actualHours: actual,
+        pendingReview: dTasks.filter(t => t.status === 'Pending Review').length
       };
     });
   },
@@ -113,7 +115,24 @@ export const analyticsService = {
     });
   },
 
-  // Lead Efficiency Rankings
+  // Performance Rankings (used in Analytics Hub)
+  getPerformanceRankings: () => {
+    const { users, tasks } = useLuminaStore.getState();
+    return users.filter(u => u.role === 'Lead' || u.role === 'Artist').map(u => {
+      const uTasks = tasks.filter(t => t.assignedArtistId === u.id || t.leadId === u.id);
+      const bid = uTasks.reduce((acc, t) => acc + t.bidHours, 0);
+      const actual = uTasks.reduce((acc, t) => acc + t.spentHours, 0);
+      
+      return {
+        name: u.name,
+        role: u.role,
+        efficiency: actual > 0 ? Math.round((bid / actual) * 100) : 100,
+        taskCount: uTasks.length
+      };
+    }).sort((a, b) => b.efficiency - a.efficiency);
+  },
+
+  // Lead Efficiency Rankings (used in Dashboard)
   getLeadPerformance: () => {
     const { users, tasks } = useLuminaStore.getState();
     return users.filter(u => u.role === 'Lead').map(u => {
@@ -127,5 +146,19 @@ export const analyticsService = {
         managedShots: new Set(uTasks.map(t => t.shotId)).size
       };
     }).sort((a, b) => b.efficiency - a.efficiency);
+  },
+
+  // Utilization by department (used in Workload page)
+  getDepartmentUtilization: () => {
+    const { tasks } = useLuminaStore.getState();
+    const depts = ['Roto', 'Paint', 'Comp', 'CG', 'Matchmove'];
+    return depts.map(dept => {
+      const dTasks = tasks.filter(t => t.pipelineStep === dept);
+      // Calculate utilization based on task volume vs arbitrary capacity
+      return {
+        name: dept,
+        value: Math.min(100, Math.round((dTasks.length / 20) * 100))
+      };
+    });
   }
 };
