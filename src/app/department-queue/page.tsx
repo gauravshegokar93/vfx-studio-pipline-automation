@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -7,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LayoutList, ShieldCheck, AlertCircle, CheckCircle, Film, UserCircle, Briefcase } from 'lucide-react';
+import { LayoutList, ShieldCheck, AlertCircle, CheckCircle, Film, UserCircle, Briefcase, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Dialog, 
@@ -20,6 +21,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
 
 export default function DepartmentQueuePage() {
   const { tasks, shots, assignTaskLead, supervisorApproveTask } = useLuminaStore();
@@ -33,6 +35,7 @@ export default function DepartmentQueuePage() {
     { id: 'l1', name: 'Kyle Reese', department: 'Comp', activeShots: 4 },
     { id: 'l2', name: 'John Matrix', department: 'Comp', activeShots: 2 },
     { id: 'l3', name: 'Zoe Chen', department: 'Paint', activeShots: 3 },
+    { id: 'u4', name: 'Ellen Ripley', department: 'Comp', activeShots: 1 },
   ];
 
   const [supReviewModalOpen, setSupReviewModalOpen] = useState(false);
@@ -58,7 +61,7 @@ export default function DepartmentQueuePage() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <AppSidebar />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto scrollbar-hide">
         <div className="p-8 space-y-8">
           <div className="flex justify-between items-end">
             <div>
@@ -69,6 +72,7 @@ export default function DepartmentQueuePage() {
               <h1 className="text-4xl font-headline text-white mb-2">Department Orchestration</h1>
               <p className="text-muted-foreground">Delegating shot blocks to Leads and executing final quality sign-offs.</p>
             </div>
+            <CreateTaskDialog />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

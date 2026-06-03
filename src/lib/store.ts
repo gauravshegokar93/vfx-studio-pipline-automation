@@ -22,6 +22,9 @@ interface LuminaState {
   deactivateUser: (userId: string) => void;
   resetUserPassword: (userId: string) => void;
   
+  // Task Management
+  addTask: (task: Task) => void;
+  
   bootstrapStudio: (data: {
     projects: Project[];
     sequences: Sequence[];
@@ -56,6 +59,8 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     { id: 'u2', employeeCode: 'EMP-SUP-01', name: 'Kyle Reese', email: 'kyle.r@lumina.vfx', role: 'Department Supervisor', departmentId: 'dept-comp', isActive: true },
     { id: 'u3', employeeCode: 'EMP-ART-01', name: 'Sarah Connor', email: 'sarah.c@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true },
     { id: 'u4', employeeCode: 'EMP-LD-01', name: 'Ellen Ripley', email: 'ellen.r@lumina.vfx', role: 'Lead', departmentId: 'dept-comp', isActive: true },
+    { id: 'u5', employeeCode: 'EMP-ART-02', name: 'Alex Rivera', email: 'alex@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true },
+    { id: 'u6', employeeCode: 'EMP-ART-03', name: 'Zoe Chen', email: 'zoe@lumina.vfx', role: 'Artist', departmentId: 'dept-paint', isActive: true },
   ],
   departments: [
     { id: 'dept-paint', name: 'Paint' },
@@ -77,9 +82,10 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     users: state.users.map(u => u.id === userId ? { ...u, isActive: false } : u)
   })),
   resetUserPassword: (userId) => {
-    // Simulated: Trigger password reset email or log temporary password
     console.log(`Password reset triggered for user: ${userId}`);
   },
+  
+  addTask: (task) => set((state) => ({ tasks: [...state.tasks, task] })),
   
   bootstrapStudio: (data) => set({
     projects: data.projects,

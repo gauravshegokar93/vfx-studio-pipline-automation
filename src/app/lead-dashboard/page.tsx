@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Clock, UserPlus, MessageSquare, Gauge, Zap, Film, AlertTriangle, UserCheck } from 'lucide-react';
+import { Users, Clock, UserPlus, MessageSquare, Gauge, Zap, Film, AlertTriangle, UserCheck, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Dialog, 
@@ -21,6 +21,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
 
 export default function LeadDashboardPage() {
   const { tasks, shots, currentUser, assignTaskArtist, leadReviewTask, users } = useLuminaStore();
@@ -63,7 +64,7 @@ export default function LeadDashboardPage() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <AppSidebar />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto scrollbar-hide">
         <div className="p-8 space-y-8">
           <div className="flex justify-between items-end">
             <div>
@@ -74,6 +75,7 @@ export default function LeadDashboardPage() {
               <h1 className="text-4xl font-headline text-white mb-2">Comp Team Control Hub</h1>
               <p className="text-muted-foreground">Orchestrating artist allocation for shots delegated by Supervisors.</p>
             </div>
+            <CreateTaskDialog />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
