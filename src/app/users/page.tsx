@@ -20,6 +20,7 @@ import {
   UserCheck,
   CheckCircle, 
   AlertCircle,
+  AlertTriangle,
   Loader2,
   Lock,
   Eye,
@@ -43,11 +44,10 @@ import { Role, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function UserManagementPage() {
-  const { currentRole, currentUser, users, userCredentials, addUser, bulkImportUsers, toggleUserStatus, resetUserPassword, updateUserCredentials, departments } = useLuminaStore();
+  const { currentRole, currentUser, users, userCredentials, addUser, bulkImportUsers, toggleUserStatus, updateUserCredentials, departments } = useLuminaStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<User[] | null>(null);
-  const [showPass, setShowPass] = useState(false);
 
   // Scoping Logic
   const isPH = currentRole === 'Production Head';
@@ -138,7 +138,7 @@ export default function UserManagementPage() {
           </div>
 
           <Tabs defaultValue="registry" className="w-full">
-            <TabsList className="bg-sidebar border border-sidebar-border p-1 h-14 sticky top-0 z-20">
+            <TabsList className="bg-sidebar border border-sidebar-border p-1 h-14 sticky top-0 z-20 shadow-xl">
               <TabsTrigger value="registry" className="px-6 font-bold flex gap-2"><Users className="w-4 h-4" /> User Registry</TabsTrigger>
               <TabsTrigger value="create" className="px-6 font-bold flex gap-2"><UserPlus className="w-4 h-4" /> Create Staff</TabsTrigger>
               <TabsTrigger value="import" className="px-6 font-bold flex gap-2"><FileUp className="w-4 h-4" /> Bulk Onboarding</TabsTrigger>
@@ -167,7 +167,7 @@ export default function UserManagementPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredUsers.map(u => (
-                      <TableRow key={u.id} className="border-sidebar-border hover:bg-sidebar-accent/10 h-16">
+                      <TableRow key={u.id} className="border-sidebar-border hover:bg-sidebar-accent/10 h-16 transition-colors">
                         <TableCell className="pl-6">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-lg bg-sidebar-accent flex items-center justify-center font-bold text-crimson">{u.name.charAt(0)}</div>
@@ -314,7 +314,7 @@ export default function UserManagementPage() {
                      {filteredUsers.map(u => {
                        const cred = userCredentials.find(c => c.userId === u.id);
                        return (
-                         <TableRow key={u.id} className="border-sidebar-border h-16 hover:bg-sidebar-accent/10">
+                         <TableRow key={u.id} className="border-sidebar-border h-16 hover:bg-sidebar-accent/10 transition-colors">
                            <TableCell className="pl-6 font-bold text-white">{u.name}</TableCell>
                            <TableCell className="font-mono text-xs text-crimson">{cred?.username || '--'}</TableCell>
                            <TableCell className="font-mono text-xs">
@@ -353,7 +353,7 @@ export default function UserManagementPage() {
 
         {/* Credential Update Dialog */}
         <Dialog open={credModalOpen} onOpenChange={setCredModalOpen}>
-          <DialogContent className="bg-sidebar border-sidebar-border text-white">
+          <DialogContent className="bg-sidebar border-sidebar-border text-white shadow-2xl">
             <DialogHeader><DialogTitle className="flex items-center gap-2 font-headline"><Lock className="text-crimson" /> Update Authentication Profile</DialogTitle></DialogHeader>
             <div className="space-y-6 py-6">
               <div className="p-4 bg-crimson/5 border border-crimson/20 rounded-xl">
@@ -367,7 +367,7 @@ export default function UserManagementPage() {
                 <p className="text-[10px] text-muted-foreground italic flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> This will force a password reset on user's next login.</p>
               </div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => setCredModalOpen(false)}>Cancel</Button><Button className="bg-crimson px-8 font-bold" onClick={() => { if(selectedUserForCreds) updateUserCredentials(selectedUserForCreds.id, credFormData.username, credFormData.password); setCredModalOpen(false); }}>Sync SSoT Credentials</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setCredModalOpen(false)}>Cancel</Button><Button className="bg-crimson px-8 font-bold shadow-lg shadow-crimson/20" onClick={() => { if(selectedUserForCreds) updateUserCredentials(selectedUserForCreds.id, credFormData.username, credFormData.password); setCredModalOpen(false); }}>Sync SSoT Credentials</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       </main>
