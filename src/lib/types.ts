@@ -1,5 +1,5 @@
 
-export type Role = 'Super Admin' | 'Producer' | 'Production Manager' | 'Department Supervisor' | 'Team Lead' | 'Artist';
+export type Role = 'Production Head' | 'Department Supervisor' | 'Lead' | 'Artist';
 
 export type PipelineStep = 'Ingest' | 'Prep' | 'Roto' | 'Paint' | 'Matchmove' | 'CG' | 'Comp' | 'QC' | 'Delivery';
 
@@ -33,6 +33,12 @@ export interface Project {
   thumbnailUrl?: string;
 }
 
+export interface Sequence {
+  id: string;
+  projectId: string;
+  sequenceCode: string;
+}
+
 export interface Shot {
   id: string;
   projectId: string;
@@ -59,24 +65,34 @@ export interface Task {
   startDate: string;
   dueDate: string;
   priority: string;
+  isTimerRunning?: boolean;
+  lastTimerStart?: number;
+}
+
+export interface TimeLog {
+  id: string;
+  taskId: string;
+  artistId: string;
+  startTime: string;
+  endTime?: string;
+  totalMinutes: number;
 }
 
 export interface Version {
   id: string;
   taskId: string;
+  artistId: string;
   versionNumber: number;
   filePath: string;
-  submittedBy: string;
-  reviewStatus: string;
+  reviewStatus: TaskStatus;
   reviewComment?: string;
   createdAt: string;
 }
 
-export interface AnalyticsSummary {
-  totalProjects: number;
-  totalShots: number;
-  activeTasks: number;
-  overdueTasks: number;
-  bidVsActual: { department: string; bid: number; actual: number }[];
-  utilization: { department: string; percentage: number }[];
+export interface Comment {
+  id: string;
+  taskId: string;
+  userId: string;
+  commentText: string;
+  createdAt: string;
 }

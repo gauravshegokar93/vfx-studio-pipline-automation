@@ -2,17 +2,21 @@
 "use client";
 
 import { create } from 'zustand';
-import { User, Project, Task, Shot, Department } from './types';
+import { User, Project, Task, Shot, Department, Role } from './types';
 
 interface LuminaState {
   currentUser: User | null;
+  currentRole: Role;
   projects: Project[];
   tasks: Task[];
   shots: Shot[];
   departments: Department[];
+  
   setCurrentUser: (user: User | null) => void;
+  setRole: (role: Role) => void;
   setProjects: (projects: Project[]) => void;
   setTasks: (tasks: Task[]) => void;
+  updateTaskTimer: (taskId: string, isRunning: boolean) => void;
 }
 
 export const useLuminaStore = create<LuminaState>((set) => ({
@@ -20,12 +24,13 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     id: 'u1',
     name: 'Sarah Connor',
     email: 'sarah.c@lumina.vfx',
-    role: 'Producer',
+    role: 'Production Head',
     employeeCode: 'EMP001',
     departmentId: 'dept-prod',
     isActive: true,
     avatarUrl: 'https://picsum.photos/seed/sarah/100/100'
   },
+  currentRole: 'Production Head',
   departments: [
     { id: 'dept-paint', name: 'Paint' },
     { id: 'dept-roto', name: 'Roto' },
@@ -33,31 +38,19 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     { id: 'dept-mm', name: 'Matchmove' },
     { id: 'dept-cg', name: 'CG' },
   ],
-  projects: [
-    {
-      id: 'p1',
-      projectCode: 'NGHT',
-      projectName: 'The Night Walker',
-      clientName: 'Warner Studios',
-      startDate: '2024-01-01',
-      endDate: '2024-12-31',
-      status: 'In-Production',
-      thumbnailUrl: 'https://picsum.photos/seed/night/800/400'
-    },
-    {
-      id: 'p2',
-      projectCode: 'NEON',
-      projectName: 'Neon Genesis Live',
-      clientName: 'Netflix',
-      startDate: '2024-03-15',
-      endDate: '2025-06-30',
-      status: 'Pre-Production',
-      thumbnailUrl: 'https://picsum.photos/seed/neon/800/400'
-    }
-  ],
+  projects: [],
   shots: [],
   tasks: [],
+
   setCurrentUser: (user) => set({ currentUser: user }),
+  setRole: (role) => set({ currentRole: role }),
   setProjects: (projects) => set({ projects }),
   setTasks: (tasks) => set({ tasks }),
+  updateTaskTimer: (taskId, isRunning) => set((state) => ({
+    tasks: state.tasks.map(t => 
+      t.id === taskId 
+        ? { ...t, isTimerRunning: isRunning, lastTimerStart: isRunning ? Date.now() : t.lastTimerStart } 
+        : t
+    )
+  })),
 }));

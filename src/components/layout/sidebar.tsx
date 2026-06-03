@@ -10,36 +10,39 @@ import {
   Layers, 
   CheckSquare, 
   Users, 
-  Calendar, 
   BarChart3, 
   Settings, 
   LogOut,
   BrainCircuit,
   Clapperboard,
-  Search
+  Search,
+  FilePlus,
+  Table as TableIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { useLuminaStore } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-const navItems = [
-  { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-  { label: 'Projects', icon: Clapperboard, href: '/projects' },
-  { label: 'Review Queue', icon: Film, href: '/review' },
-  { label: 'Tasks', icon: CheckSquare, href: '/tasks' },
-  { label: 'Scheduling', icon: BrainCircuit, href: '/scheduling' },
-  { label: 'Team', icon: Users, href: '/team' },
-  { label: 'Analytics', icon: BarChart3, href: '/analytics' },
-];
-
 export function AppSidebar() {
   const pathname = usePathname();
-  const { currentUser } = useLuminaStore();
+  const { currentUser, currentRole, setRole } = useLuminaStore();
+
+  const navItems = [
+    { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
+    { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
+    { label: 'Review Queue', icon: Film, href: '/review' },
+    { label: 'My Workbench', icon: CheckSquare, href: '/tasks' },
+    { label: 'Resource Scheduling', icon: BrainCircuit, href: '/scheduling', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Analytics', icon: BarChart3, href: '/analytics' },
+  ];
+
+  const filteredItems = navItems.filter(item => 
+    !item.roles || item.roles.includes(currentRole)
+  );
 
   return (
-    <div className="flex flex-col h-screen w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border overflow-hidden">
+    <div className="flex flex-col h-screen w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border overflow-hidden shrink-0">
       <div className="p-6 flex items-center gap-3">
         <div className="w-8 h-8 bg-crimson rounded-md flex items-center justify-center">
           <Layers className="text-white w-5 h-5" />
@@ -53,13 +56,13 @@ export function AppSidebar() {
           <input
             type="search"
             placeholder="Search hub..."
-            className="w-full bg-sidebar-accent border-none rounded-md py-2 pl-9 pr-4 text-sm focus:ring-1 focus:ring-crimson outline-none"
+            className="w-full bg-sidebar-accent border-none rounded-md py-2 pl-9 pr-4 text-sm focus:ring-1 focus:ring-crimson outline-none text-white"
           />
         </div>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => (
+        {filteredItems.map((item) => (
           <Link key={item.href} href={item.href}>
             <span className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all group",
@@ -77,6 +80,24 @@ export function AppSidebar() {
         ))}
       </nav>
 
+      <div className="p-4 border-t border-sidebar-border bg-sidebar-accent/20">
+        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Role Simulator</p>
+        <div className="flex flex-wrap gap-1">
+          {['Production Head', 'Department Supervisor', 'Lead', 'Artist'].map(r => (
+            <button
+              key={r}
+              onClick={() => setRole(r as any)}
+              className={cn(
+                "text-[8px] px-2 py-1 rounded border",
+                currentRole === r ? "bg-crimson text-white border-crimson" : "text-muted-foreground border-sidebar-border"
+              )}
+            >
+              {r.split(' ')[0]}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-auto p-4 bg-sidebar-accent/50">
         <div className="flex items-center gap-3 mb-4">
           <Avatar className="h-9 w-9 border border-sidebar-border">
@@ -85,7 +106,7 @@ export function AppSidebar() {
           </Avatar>
           <div className="flex flex-col overflow-hidden">
             <span className="text-sm font-medium text-white truncate">{currentUser?.name}</span>
-            <span className="text-xs text-muted-foreground truncate">{currentUser?.role}</span>
+            <span className="text-[10px] text-crimson font-bold uppercase tracking-tighter">{currentRole}</span>
           </div>
         </div>
         
