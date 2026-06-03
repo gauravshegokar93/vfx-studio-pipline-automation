@@ -23,6 +23,12 @@ The hierarchy follows a strict VFX pipeline:
 | IsActive | BIT | Default: 1 |
 | CreatedAt | DATETIME2 | Default: GETUTCDATE() |
 
+### Departments
+| Column | Type | Constraints |
+| :--- | :--- | :--- |
+| DepartmentId | UNIQUEIDENTIFIER | PK |
+| DepartmentName | NVARCHAR(100) | Unique, Not Null |
+
 ### Projects
 | Column | Type | Constraints |
 | :--- | :--- | :--- |
@@ -34,16 +40,71 @@ The hierarchy follows a strict VFX pipeline:
 | StartDate | DATE | |
 | EndDate | DATE | |
 
+### Sequences
+| Column | Type | Constraints |
+| :--- | :--- | :--- |
+| SequenceId | UNIQUEIDENTIFIER | PK |
+| ProjectId | UNIQUEIDENTIFIER | FK -> Projects |
+| SequenceCode | NVARCHAR(50) | Not Null |
+
+### Shots
+| Column | Type | Constraints |
+| :--- | :--- | :--- |
+| ShotId | UNIQUEIDENTIFIER | PK |
+| ProjectId | UNIQUEIDENTIFIER | FK -> Projects |
+| SequenceId | UNIQUEIDENTIFIER | FK -> Sequences |
+| ShotCode | NVARCHAR(50) | Not Null |
+| Priority | NVARCHAR(20) | 'Low', 'Medium', 'High', 'Critical' |
+| Status | NVARCHAR(50) | |
+| DueDate | DATE | |
+| Description | NVARCHAR(MAX) | |
+
 ### Tasks
 | Column | Type | Constraints |
 | :--- | :--- | :--- |
 | TaskId | UNIQUEIDENTIFIER | PK |
 | ShotId | UNIQUEIDENTIFIER | FK -> Shots |
 | PipelineStep | NVARCHAR(50) | 'Paint', 'Comp', etc. |
+| SupervisorId | UNIQUEIDENTIFIER | FK -> Users |
+| LeadId | UNIQUEIDENTIFIER | FK -> Users |
 | ArtistId | UNIQUEIDENTIFIER | FK -> Users |
 | BidHours | DECIMAL(10, 2) | Not Null |
-| ActualHours | DECIMAL(10, 2) | Calculated (Sum of TimeLogs) |
+| ActualHours | DECIMAL(10, 2) | Computed/Updated via TimeLogs |
+| RemainingHours | DECIMAL(10, 2) | |
 | Status | NVARCHAR(50) | 'In Progress', 'Approved', etc. |
+| StartDate | DATE | |
+| DueDate | DATE | |
+| Priority | NVARCHAR(20) | |
+
+### TimeLogs
+| Column | Type | Constraints |
+| :--- | :--- | :--- |
+| TimeLogId | UNIQUEIDENTIFIER | PK |
+| TaskId | UNIQUEIDENTIFIER | FK -> Tasks |
+| ArtistId | UNIQUEIDENTIFIER | FK -> Users |
+| StartTime | DATETIME2 | Not Null |
+| EndTime | DATETIME2 | |
+| TotalMinutes | INT | Calculated on EndTime update |
+
+### Versions
+| Column | Type | Constraints |
+| :--- | :--- | :--- |
+| VersionId | UNIQUEIDENTIFIER | PK |
+| TaskId | UNIQUEIDENTIFIER | FK -> Tasks |
+| ArtistId | UNIQUEIDENTIFIER | FK -> Users |
+| VersionNumber | INT | Not Null |
+| FilePath | NVARCHAR(MAX) | |
+| ReviewStatus | NVARCHAR(50) | |
+| ReviewComments | NVARCHAR(MAX) | |
+
+### Comments
+| Column | Type | Constraints |
+| :--- | :--- | :--- |
+| CommentId | UNIQUEIDENTIFIER | PK |
+| TaskId | UNIQUEIDENTIFIER | FK -> Tasks |
+| UserId | UNIQUEIDENTIFIER | FK -> Users |
+| CommentText | NVARCHAR(MAX) | Not Null |
+| CreatedAt | DATETIME2 | Default: GETUTCDATE() |
 
 ## 3. Table Relationships & Foreign Keys
 - **One-to-Many**: `Project` -> `Sequences`
@@ -64,16 +125,19 @@ The hierarchy follows a strict VFX pipeline:
 - **Tables**: Pluralized PascalCase (e.g., `Projects`, `TimeLogs`).
 - **Columns**: PascalCase (e.g., `ProjectId`, `TaskStatus`).
 - **Foreign Keys**: `FK_SourceTable_TargetTable` (e.g., `FK_Tasks_Shots`).
-- **Stored Procs**: `usp_` prefix (if used).
+- **Stored Procs**: `usp_` prefix (if used for complex rollups).
 
 ## 6. Backend Module Architecture (Sequelize)
 ```text
 src/
 ├── modules/
 │   ├── auth/          # JWT & Refresh token logic
+│   ├── users/         # User & Role management
 │   ├── import/        # Excel parsing & Transactional upserts
-│   ├── tasks/         # Timer logic & Productivity calc
-│   └── reviews/       # Version state machine
+│   ├── projects/      # Project/Sequence/Shot logic
+│   ├── tasks/         # Task assignment & State machine
+│   ├── timelogs/      # Timer logic & Productivity calc
+│   └── review/        # Version control & Feedback
 ├── database/
 │   ├── models/        # Sequelize model definitions
 │   └── migrations/    # SQL Schema versioning
@@ -83,9 +147,11 @@ src/
 ## 7. API Endpoint Design (REST)
 - `POST /api/auth/login`: Returns Access & Refresh tokens.
 - `POST /api/import/bid-sheet`: Process Excel file.
+- `GET /api/projects`: List projects.
 - `GET /api/tasks/artist/:userId`: Fetch workbench tasks.
 - `PATCH /api/tasks/:taskId/status`: Update workflow state.
 - `POST /api/timelogs/start`: Initialize a timer session.
+- `POST /api/versions`: Submit a new work version.
 
 ## 8. Business Flows
 
@@ -104,8 +170,18 @@ src/
     - Create `Shots` and associated `Tasks` based on pipeline mapping.
 4. **Summary**: Return JSON with success/fail counts.
 
+### Task Assignment Flow
+1. **Supervisor**: Assigns Task to a Lead.
+2. **Lead**: Assigns Task to an Artist.
+3. **Update**: Task status moves to 'Assigned'.
+
+### Time Tracking Flow
+1. **Start**: Artist clicks 'Start'. Create `TimeLog` with `StartTime`.
+2. **Pause/Stop**: Update `TimeLog` with `EndTime`. Calculate `TotalMinutes`.
+3. **Rollup**: Update `Task.ActualHours` = `Sum(TimeLogs.TotalMinutes) / 60`.
+
 ### Productivity Calculation Flow
-- **Formula**: `(BidHours / SUM(TimeLog.TotalMinutes / 60.0)) * 100`.
+- **Formula**: `(BidHours / ActualHours) * 100`.
 - **Trigger**: Calculated on the fly in the API response or stored in a `TaskProductivity` view for faster reporting.
 
 ### Version Review Flow
