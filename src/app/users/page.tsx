@@ -24,7 +24,8 @@ import {
   Loader2,
   Lock,
   Eye,
-  EyeOff
+  EyeOff,
+  Edit3
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -48,7 +49,7 @@ import { Role, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export default function UserManagementPage() {
-  const { currentRole, currentUser, users, userCredentials, addUser, bulkImportUsers, toggleUserStatus, resetUserPassword, departments } = useLuminaStore();
+  const { currentRole, currentUser, users, userCredentials, addUser, bulkImportUsers, toggleUserStatus, resetUserPassword, updateUserCredentials, departments } = useLuminaStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<User[] | null>(null);
@@ -56,7 +57,9 @@ export default function UserManagementPage() {
   // Permission Logic
   const isProductionHead = currentRole === 'Production Head';
   const isSupervisor = currentRole === 'Department Supervisor';
+  const isLead = currentRole === 'Lead';
   const canManageStaff = isProductionHead || isSupervisor;
+  const canOnboard = isProductionHead || isSupervisor;
 
   // Manual Creation State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,19 +75,26 @@ export default function UserManagementPage() {
     password: ''
   });
 
+  // Manual Credential Update State
+  const [credModalOpen, setCredModalOpen] = useState(false);
+  const [selectedUserForCreds, setSelectedUserForCreds] = useState<User | null>(null);
+  const [credFormData, setCredFormData] = useState({ username: '', password: '' });
+
   // Filter users based on scope
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           u.employeeCode.toLowerCase().includes(searchTerm.toLowerCase());
+    
     if (isProductionHead) return matchesSearch;
     if (isSupervisor) return matchesSearch && u.departmentId === currentUser?.departmentId;
+    if (isLead) return matchesSearch && u.leadId === currentUser?.id;
     return false;
   });
 
   const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setImporting(true);
-      // Simulate reading Excel columns: EmployeeCode, EmployeeName, Email, Department, Lead, Role
+      // Simulate reading Excel columns
       setTimeout(() => {
         const mockParsed: User[] = [
           { id: `u_bulk_${Date.now()}_1`, employeeCode: 'EMP-VFX-900', name: 'John Matrix', email: 'matrix@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true, isFirstLogin: true },
@@ -133,9 +143,25 @@ export default function UserManagementPage() {
     toast({ title: "User Created", description: `${newUser.name} added to ${formData.departmentId}.` });
   };
 
+  const handleOpenCredUpdate = (user: User) => {
+    const cred = userCredentials.find(c => c.userId === user.id);
+    setSelectedUserForCreds(user);
+    setCredFormData({ 
+      username: cred?.username || '', 
+      password: cred?.tempPassword || '' 
+    });
+    setCredModalOpen(true);
+  };
+
+  const handleCommitCredUpdate = () => {
+    if (!selectedUserForCreds) return;
+    updateUserCredentials(selectedUserForCreds.id, credFormData.username, credFormData.password);
+    setCredModalOpen(false);
+    toast({ title: "Credentials Updated", description: `Access profile for ${selectedUserForCreds.name} synchronized.` });
+  };
+
   const exportCredentials = () => {
-    // Simulate generation of a CSV/Excel list
-    const list = users.map(u => {
+    const list = filteredUsers.map(u => {
       const cred = userCredentials.find(c => c.userId === u.id);
       return `${u.name}, ${cred?.username}, ${cred?.tempPassword || '******'}`;
     }).join('\n');
@@ -154,7 +180,7 @@ export default function UserManagementPage() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <AppSidebar />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto scrollbar-hide">
         <div className="p-8 space-y-8">
           <div className="flex justify-between items-end">
             <div>
@@ -163,7 +189,9 @@ export default function UserManagementPage() {
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Enterprise Employee Master</span>
               </div>
               <h1 className="text-4xl font-headline text-white mb-2">Staff & Identity Management</h1>
-              <p className="text-muted-foreground">Managing secure access lifecycle and hierarchical resource registry.</p>
+              <p className="text-muted-foreground">
+                {isLead ? 'Managing access profiles and credentials for your reporting team.' : 'Managing secure access lifecycle and hierarchical resource registry.'}
+              </p>
             </div>
             
             <div className="flex gap-4">
@@ -171,98 +199,100 @@ export default function UserManagementPage() {
                 <Download className="w-4 h-4 mr-2" /> Export Credentials
               </Button>
               
-              <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-crimson h-12 px-8 font-bold shadow-lg shadow-crimson/20">
-                    <UserPlus className="w-5 h-5 mr-2" /> Create Production Staff
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-sidebar border-sidebar-border text-white max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle className="text-2xl font-headline">Manual User Onboarding</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid grid-cols-2 gap-6 py-6 border-b border-sidebar-border/30">
-                    <div className="space-y-4">
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Profile Details</p>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Full Name</Label>
-                        <Input className="bg-sidebar-accent border-sidebar-border" placeholder="e.g. Ellen Ripley" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Employee Code</Label>
-                        <Input className="bg-sidebar-accent border-sidebar-border" placeholder="EMP-VFX-001" value={formData.employeeCode} onChange={e => setFormData({...formData, employeeCode: e.target.value})} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Email</Label>
-                        <Input className="bg-sidebar-accent border-sidebar-border" placeholder="ripley@lumina.vfx" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Hierarchy & Access</p>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Role</Label>
-                        <Select value={formData.role} onValueChange={(val: any) => setFormData({...formData, role: val})}>
-                          <SelectTrigger className="bg-sidebar-accent border-sidebar-border"><SelectValue /></SelectTrigger>
-                          <SelectContent className="bg-sidebar border-sidebar-border text-white">
-                            <SelectItem value="Artist">Artist</SelectItem>
-                            <SelectItem value="Lead">Lead</SelectItem>
-                            <SelectItem value="Department Supervisor">Supervisor</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Department</Label>
-                        <Select value={formData.departmentId} onValueChange={val => setFormData({...formData, departmentId: val})} disabled={!isProductionHead}>
-                          <SelectTrigger className="bg-sidebar-accent border-sidebar-border"><SelectValue /></SelectTrigger>
-                          <SelectContent className="bg-sidebar border-sidebar-border text-white">
-                            {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {formData.role === 'Artist' && (
+              {canOnboard && (
+                <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-crimson h-12 px-8 font-bold shadow-lg shadow-crimson/20">
+                      <UserPlus className="w-5 h-5 mr-2" /> Create Production Staff
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-sidebar border-sidebar-border text-white max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-headline">Manual User Onboarding</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 gap-6 py-6 border-b border-sidebar-border/30">
+                      <div className="space-y-4">
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Profile Details</p>
                         <div className="space-y-2">
-                          <Label className="text-xs">Reporting Lead</Label>
-                          <Select value={formData.leadId} onValueChange={val => setFormData({...formData, leadId: val})}>
-                            <SelectTrigger className="bg-sidebar-accent border-sidebar-border"><SelectValue placeholder="Select Lead" /></SelectTrigger>
+                          <Label className="text-xs">Full Name</Label>
+                          <Input className="bg-sidebar-accent border-sidebar-border" placeholder="e.g. Ellen Ripley" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Employee Code</Label>
+                          <Input className="bg-sidebar-accent border-sidebar-border" placeholder="EMP-VFX-001" value={formData.employeeCode} onChange={e => setFormData({...formData, employeeCode: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Email</Label>
+                          <Input className="bg-sidebar-accent border-sidebar-border" placeholder="ripley@lumina.vfx" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Hierarchy & Access</p>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Role</Label>
+                          <Select value={formData.role} onValueChange={(val: any) => setFormData({...formData, role: val})}>
+                            <SelectTrigger className="bg-sidebar-accent border-sidebar-border"><SelectValue /></SelectTrigger>
                             <SelectContent className="bg-sidebar border-sidebar-border text-white">
-                              {leadsInDept.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                              <SelectItem value="Artist">Artist</SelectItem>
+                              <SelectItem value="Lead">Lead</SelectItem>
+                              <SelectItem value="Department Supervisor">Supervisor</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="py-6 space-y-4">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Login Credentials (Optional - Defaults to System Gen)</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-xs">Username Override</Label>
-                        <Input className="bg-sidebar-accent border-sidebar-border" placeholder="ripley.e" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                        <div className="space-y-2">
+                          <Label className="text-xs">Department</Label>
+                          <Select value={formData.departmentId} onValueChange={val => setFormData({...formData, departmentId: val})} disabled={!isProductionHead}>
+                            <SelectTrigger className="bg-sidebar-accent border-sidebar-border"><SelectValue /></SelectTrigger>
+                            <SelectContent className="bg-sidebar border-sidebar-border text-white">
+                              {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {formData.role === 'Artist' && (
+                          <div className="space-y-2">
+                            <Label className="text-xs">Reporting Lead</Label>
+                            <Select value={formData.leadId} onValueChange={val => setFormData({...formData, leadId: val})}>
+                              <SelectTrigger className="bg-sidebar-accent border-sidebar-border"><SelectValue placeholder="Select Lead" /></SelectTrigger>
+                              <SelectContent className="bg-sidebar border-sidebar-border text-white">
+                                {leadsInDept.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Password Override</Label>
-                        <div className="relative">
-                          <Input type={showPass ? 'text' : 'password'} className="bg-sidebar-accent border-sidebar-border pr-10" placeholder="••••••••" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
-                          <button className="absolute right-3 top-2.5 text-muted-foreground hover:text-white" onClick={() => setShowPass(!showPass)}>
-                            {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
+                    </div>
+                    <div className="py-6 space-y-4">
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Login Credentials (Optional - Defaults to System Gen)</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">Username Override</Label>
+                          <Input className="bg-sidebar-accent border-sidebar-border" placeholder="ripley.e" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Password Override</Label>
+                          <div className="relative">
+                            <Input type={showPass ? 'text' : 'password'} className="bg-sidebar-accent border-sidebar-border pr-10" placeholder="••••••••" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                            <button className="absolute right-3 top-2.5 text-muted-foreground hover:text-white" onClick={() => setShowPass(!showPass)}>
+                              {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                    <Button className="bg-crimson font-bold px-8" onClick={handleCreateUser}>Commit Member to SSoT</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                      <Button className="bg-crimson font-bold px-8" onClick={handleCreateUser}>Commit Member to SSoT</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           </div>
 
           <Tabs defaultValue="registry" className="w-full">
             <TabsList className="bg-sidebar border border-sidebar-border p-1 h-12">
               <TabsTrigger value="registry" className="px-8 font-bold flex gap-2"><Users className="w-4 h-4" /> User Registry</TabsTrigger>
-              <TabsTrigger value="import" className="px-8 font-bold flex gap-2"><FileUp className="w-4 h-4" /> Bulk Onboarding</TabsTrigger>
+              {canOnboard && <TabsTrigger value="import" className="px-8 font-bold flex gap-2"><FileUp className="w-4 h-4" /> Bulk Onboarding</TabsTrigger>}
               <TabsTrigger value="audit" className="px-8 font-bold flex gap-2"><Lock className="w-4 h-4" /> Credentials Audit</TabsTrigger>
             </TabsList>
 
@@ -273,7 +303,7 @@ export default function UserManagementPage() {
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input placeholder="Search employee master..." className="pl-10 bg-sidebar border-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                   </div>
-                  <Badge variant="outline" className="border-sidebar-border">{filteredUsers.length} active records</Badge>
+                  <Badge variant="outline" className="border-sidebar-border">{filteredUsers.length} records in scope</Badge>
                 </div>
                 <Table>
                   <TableHeader className="bg-sidebar-accent/50">
@@ -321,8 +351,11 @@ export default function UserManagementPage() {
                         </TableCell>
                         <TableCell className="pr-6 text-right">
                           <div className="flex justify-end gap-1">
+                             <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-white" onClick={() => handleOpenCredUpdate(u)} title="Update Credentials">
+                               <Edit3 className="w-4 h-4" />
+                             </Button>
                              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-white" onClick={() => resetUserPassword(u.id)} title="Reset Password"><Key className="w-4 h-4" /></Button>
-                             {u.id !== currentUser?.id && (
+                             {u.id !== currentUser?.id && (isProductionHead || isSupervisor) && (
                                <Button 
                                  size="sm" 
                                  variant="ghost" 
@@ -419,7 +452,7 @@ export default function UserManagementPage() {
                      </TableRow>
                    </TableHeader>
                    <TableBody>
-                     {users.map(u => {
+                     {filteredUsers.map(u => {
                        const cred = userCredentials.find(c => c.userId === u.id);
                        return (
                          <TableRow key={u.id} className="border-sidebar-border h-16 hover:bg-sidebar-accent/10 transition-colors">
@@ -442,7 +475,7 @@ export default function UserManagementPage() {
                              </div>
                            </TableCell>
                            <TableCell className="pr-6 text-right">
-                              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-crimson" onClick={() => resetUserPassword(u.id)}>Issue Force Reset</Button>
+                              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-crimson" onClick={() => handleOpenCredUpdate(u)}>Update Auth Profile</Button>
                            </TableCell>
                          </TableRow>
                        );
@@ -453,6 +486,55 @@ export default function UserManagementPage() {
             </TabsContent>
           </Tabs>
         </div>
+
+        {/* Manual Credential Update Dialog */}
+        <Dialog open={credModalOpen} onOpenChange={setCredModalOpen}>
+          <DialogContent className="bg-sidebar border-sidebar-border text-white">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 font-headline">
+                <Lock className="text-crimson" /> Update Authentication Profile
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6 py-6">
+              <div className="p-4 bg-crimson/5 border border-crimson/20 rounded-xl">
+                 <p className="text-xs font-bold text-crimson uppercase mb-1">Target Account</p>
+                 <p className="text-lg font-bold text-white">{selectedUserForCreds?.name}</p>
+                 <p className="text-[10px] text-muted-foreground">{selectedUserForCreds?.role} • {selectedUserForCreds?.employeeCode}</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase font-bold text-muted-foreground">SSoT Username</Label>
+                  <Input 
+                    className="bg-sidebar-accent border-sidebar-border" 
+                    value={credFormData.username} 
+                    onChange={e => setCredFormData({...credFormData, username: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase font-bold text-muted-foreground">Force New Temporary Password</Label>
+                  <div className="relative">
+                    <Input 
+                      type={showPass ? 'text' : 'password'} 
+                      className="bg-sidebar-accent border-sidebar-border pr-10" 
+                      placeholder="Leave blank to keep current"
+                      value={credFormData.password} 
+                      onChange={e => setCredFormData({...credFormData, password: e.target.value})} 
+                    />
+                    <button className="absolute right-3 top-2.5 text-muted-foreground hover:text-white" onClick={() => setShowPass(!showPass)}>
+                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">Setting a new password will force a reset on user's next login.</p>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCredModalOpen(false)}>Cancel</Button>
+              <Button className="bg-crimson font-bold px-8" onClick={handleCommitCredUpdate}>Sync Authentication Profile</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

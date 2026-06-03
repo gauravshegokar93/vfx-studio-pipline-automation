@@ -23,6 +23,7 @@ interface LuminaState {
   bulkImportUsers: (users: User[]) => void;
   toggleUserStatus: (userId: string) => void;
   resetUserPassword: (userId: string) => void;
+  updateUserCredentials: (userId: string, username: string, password?: string) => void;
   
   // Task Management
   addTask: (task: Task) => void;
@@ -60,13 +61,13 @@ export const useLuminaStore = create<LuminaState>((set) => ({
   users: [
     { id: 'u1', employeeCode: 'EMP-PH-01', name: 'John Matrix', email: 'john.m@lumina.vfx', role: 'Production Head', departmentId: 'dept-prod', isActive: true, isFirstLogin: false },
     { id: 'u2', employeeCode: 'EMP-SUP-01', name: 'Kyle Reese', email: 'kyle.r@lumina.vfx', role: 'Department Supervisor', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
-    { id: 'u3', employeeCode: 'EMP-ART-01', name: 'Sarah Connor', email: 'sarah.c@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
+    { id: 'u3', employeeCode: 'EMP-ART-01', name: 'Sarah Connor', email: 'sarah.c@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', leadId: 'u4', isActive: true, isFirstLogin: false },
     { id: 'u4', employeeCode: 'EMP-LD-01', name: 'Ellen Ripley', email: 'ellen.r@lumina.vfx', role: 'Lead', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
   ],
   userCredentials: [
     { id: 'cred_1', userId: 'u1', username: 'john.m', tempPassword: '', lastChangedAt: new Date().toISOString() },
     { id: 'cred_2', userId: 'u2', username: 'kyle.r', tempPassword: '', lastChangedAt: new Date().toISOString() },
-    { id: 'cred_3', userId: 'u3', username: 'sarah.c', tempPassword: '', lastChangedAt: new Date().toISOString() },
+    { id: 'cred_3', userId: 'u3', username: 'sarah.c', tempPassword: 'LuminaSarah123!', lastChangedAt: new Date().toISOString() },
     { id: 'cred_4', userId: 'u4', username: 'ellen.r', tempPassword: '', lastChangedAt: new Date().toISOString() },
   ],
   departments: [
@@ -121,6 +122,20 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     userCredentials: state.userCredentials.map(c => 
       c.userId === userId 
         ? { ...c, tempPassword: `LuminaReset${Math.floor(Math.random() * 1000)}!`, lastChangedAt: new Date().toISOString() } 
+        : c
+    )
+  })),
+
+  updateUserCredentials: (userId, username, password) => set((state) => ({
+    users: state.users.map(u => u.id === userId ? { ...u, isFirstLogin: !!password } : u),
+    userCredentials: state.userCredentials.map(c => 
+      c.userId === userId 
+        ? { 
+            ...c, 
+            username, 
+            ...(password ? { tempPassword: password } : {}), 
+            lastChangedAt: new Date().toISOString() 
+          } 
         : c
     )
   })),
