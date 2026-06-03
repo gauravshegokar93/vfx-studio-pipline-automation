@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -17,7 +16,10 @@ import {
   Table as TableIcon,
   LayoutList,
   Calendar,
-  Bell
+  Bell,
+  Clock,
+  History,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -36,13 +38,16 @@ export function AppSidebar() {
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
-    { label: 'Projects & Hierarchy', icon: Layers, href: '/projects', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Production Queue', icon: LayoutList, href: '/production-queue', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Hierarchy & Shots', icon: Layers, href: '/projects', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Production Head', 'Department Supervisor'] },
     { label: 'Review Queue', icon: Film, href: '/review', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
     { label: 'My Workbench', icon: CheckSquare, href: '/tasks' },
+    { label: 'Workload & Capacity', icon: Users, href: '/workload', roles: ['Production Head', 'Department Supervisor'] },
+    { label: 'Version History', icon: History, href: '/versions', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
     { label: 'Resource Scheduling', icon: BrainCircuit, href: '/scheduling', roles: ['Production Head', 'Department Supervisor'] },
-    { label: 'Leaves & Holidays', icon: Calendar, href: '/leaves' },
     { label: 'Analytics', icon: BarChart3, href: '/analytics' },
+    { label: 'Notifications', icon: Bell, href: '/notifications' },
   ];
 
   const filteredItems = navItems.filter(item => 
@@ -68,7 +73,7 @@ export function AppSidebar() {
           </PopoverTrigger>
           <PopoverContent className="w-80 bg-sidebar border-sidebar-border text-white shadow-2xl p-0 overflow-hidden" align="start">
              <div className="bg-sidebar-accent p-3 border-b border-sidebar-border">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Notifications</h4>
+                <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Recent Alerts</h4>
              </div>
              <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
                 {[1,2,3].map(i => (
@@ -78,7 +83,9 @@ export function AppSidebar() {
                   </div>
                 ))}
              </div>
-             <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-muted-foreground hover:text-white rounded-none border-t border-sidebar-border">View All Alerts</Button>
+             <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-muted-foreground hover:text-white rounded-none border-t border-sidebar-border" asChild>
+               <Link href="/notifications">View All Notifications</Link>
+             </Button>
           </PopoverContent>
         </Popover>
       </div>
@@ -88,13 +95,13 @@ export function AppSidebar() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <input
             type="search"
-            placeholder="Search hub..."
+            placeholder="Search production..."
             className="w-full bg-sidebar-accent border-none rounded-md py-2 pl-9 pr-4 text-sm focus:ring-1 focus:ring-crimson outline-none text-white"
           />
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {filteredItems.map((item) => (
           <Link key={item.href} href={item.href}>
             <span className={cn(
@@ -114,7 +121,7 @@ export function AppSidebar() {
       </nav>
 
       <div className="p-4 border-t border-sidebar-border bg-sidebar-accent/20">
-        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Single Source Simulator</p>
+        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Simulated Production Context</p>
         <div className="flex flex-wrap gap-1">
           {['Production Head', 'Department Supervisor', 'Lead', 'Artist'].map(r => (
             <button
