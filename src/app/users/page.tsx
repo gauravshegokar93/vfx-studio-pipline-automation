@@ -112,7 +112,7 @@ export default function UserManagementPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Lumina_Credentials_Master.csv';
+    a.download = 'SM_rolling_FX_Credentials_Master.csv';
     a.click();
   };
 
@@ -211,7 +211,7 @@ export default function UserManagementPage() {
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">1. Personal Profile</p>
                       <div className="space-y-2"><Label>Full Name</Label><Input className="bg-sidebar-accent border-sidebar-border" placeholder="e.g. Ellen Ripley" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div>
                       <div className="space-y-2"><Label>Employee Code</Label><Input className="bg-sidebar-accent border-sidebar-border" placeholder="EMP-VFX-001" value={formData.employeeCode} onChange={e => setFormData({...formData, employeeCode: e.target.value})} /></div>
-                      <div className="space-y-2"><Label>Email Address</Label><Input className="bg-sidebar-accent border-sidebar-border" placeholder="ripley@lumina.vfx" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
+                      <div className="space-y-2"><Label>Email Address</Label><Input className="bg-sidebar-accent border-sidebar-border" placeholder="ripley@smfx.vfx" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
                     </div>
                     <div className="space-y-4">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">2. Studio Assignment</p>

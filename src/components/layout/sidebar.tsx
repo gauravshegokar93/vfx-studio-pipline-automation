@@ -82,7 +82,7 @@ export function AppSidebar() {
           <div className="w-8 h-8 bg-crimson rounded-md flex items-center justify-center">
             <Layers className="text-white w-5 h-5" />
           </div>
-          <span className="font-headline text-xl tracking-tight text-white">LUMINA</span>
+          <span className="font-headline text-lg tracking-tight text-white uppercase">SM rolling FX</span>
         </div>
         
         <Popover>

@@ -1,9 +1,8 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Lumina VFX Hub | Enterprise Production Intelligence',
+  title: 'SM rolling FX Hub | Enterprise Production Intelligence',
   description: 'Enterprise-grade VFX Production Management Platform inspired by Netflix studio workflows.',
 };
 

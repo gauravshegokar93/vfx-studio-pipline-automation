@@ -1,4 +1,3 @@
-
 "use client";
 
 import { create } from 'zustand';
@@ -49,7 +48,7 @@ export const useLuminaStore = create<LuminaState>((set) => ({
   currentUser: {
     id: 'u1',
     name: 'John Matrix',
-    email: 'john.m@lumina.vfx',
+    email: 'john.m@smfx.vfx',
     role: 'Production Head',
     employeeCode: 'EMP-PH-01',
     departmentId: 'dept-prod',
@@ -59,15 +58,15 @@ export const useLuminaStore = create<LuminaState>((set) => ({
   },
   currentRole: 'Production Head',
   users: [
-    { id: 'u1', employeeCode: 'EMP-PH-01', name: 'John Matrix', email: 'john.m@lumina.vfx', role: 'Production Head', departmentId: 'dept-prod', isActive: true, isFirstLogin: false },
-    { id: 'u2', employeeCode: 'EMP-SUP-01', name: 'Kyle Reese', email: 'kyle.r@lumina.vfx', role: 'Department Supervisor', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
-    { id: 'u3', employeeCode: 'EMP-ART-01', name: 'Sarah Connor', email: 'sarah.c@lumina.vfx', role: 'Artist', departmentId: 'dept-comp', leadId: 'u4', isActive: true, isFirstLogin: false },
-    { id: 'u4', employeeCode: 'EMP-LD-01', name: 'Ellen Ripley', email: 'ellen.r@lumina.vfx', role: 'Lead', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
+    { id: 'u1', employeeCode: 'EMP-PH-01', name: 'John Matrix', email: 'john.m@smfx.vfx', role: 'Production Head', departmentId: 'dept-prod', isActive: true, isFirstLogin: false },
+    { id: 'u2', employeeCode: 'EMP-SUP-01', name: 'Kyle Reese', email: 'kyle.r@smfx.vfx', role: 'Department Supervisor', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
+    { id: 'u3', employeeCode: 'EMP-ART-01', name: 'Sarah Connor', email: 'sarah.c@smfx.vfx', role: 'Artist', departmentId: 'dept-comp', leadId: 'u4', isActive: true, isFirstLogin: false },
+    { id: 'u4', employeeCode: 'EMP-LD-01', name: 'Ellen Ripley', email: 'ellen.r@smfx.vfx', role: 'Lead', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
   ],
   userCredentials: [
     { id: 'cred_1', userId: 'u1', username: 'john.m', tempPassword: '', lastChangedAt: new Date().toISOString() },
     { id: 'cred_2', userId: 'u2', username: 'kyle.r', tempPassword: '', lastChangedAt: new Date().toISOString() },
-    { id: 'cred_3', userId: 'u3', username: 'sarah.c', tempPassword: 'LuminaSarah123!', lastChangedAt: new Date().toISOString() },
+    { id: 'cred_3', userId: 'u3', username: 'sarah.c', tempPassword: 'SMFXSarah123!', lastChangedAt: new Date().toISOString() },
     { id: 'cred_4', userId: 'u4', username: 'ellen.r', tempPassword: '', lastChangedAt: new Date().toISOString() },
   ],
   departments: [
@@ -90,7 +89,7 @@ export const useLuminaStore = create<LuminaState>((set) => ({
       id: `cred_${Date.now()}`,
       userId: user.id,
       username: manualCred?.username || user.email.split('@')[0],
-      tempPassword: manualCred?.tempPassword || `Lumina${user.employeeCode}!`,
+      tempPassword: manualCred?.tempPassword || `SMFX${user.employeeCode}!`,
       lastChangedAt: new Date().toISOString()
     };
     return { 
@@ -104,7 +103,7 @@ export const useLuminaStore = create<LuminaState>((set) => ({
       id: `cred_${Math.random().toString(36).substr(2, 9)}`,
       userId: u.id,
       username: u.email.split('@')[0],
-      tempPassword: `Lumina${u.employeeCode}!`,
+      tempPassword: `SMFX${u.employeeCode}!`,
       lastChangedAt: new Date().toISOString()
     }));
     return {
@@ -121,7 +120,7 @@ export const useLuminaStore = create<LuminaState>((set) => ({
     users: state.users.map(u => u.id === userId ? { ...u, isFirstLogin: true } : u),
     userCredentials: state.userCredentials.map(c => 
       c.userId === userId 
-        ? { ...c, tempPassword: `LuminaReset${Math.floor(Math.random() * 1000)}!`, lastChangedAt: new Date().toISOString() } 
+        ? { ...c, tempPassword: `SMFXReset${Math.floor(Math.random() * 1000)}!`, lastChangedAt: new Date().toISOString() } 
         : c
     )
   })),
