@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from 'react';
@@ -50,7 +49,7 @@ export default function UserManagementPage() {
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<User[] | null>(null);
 
-  // Scoping Logic
+  // Scoping Logic for Data Visibility
   const isPH = currentRole === 'Production Head';
   const isSup = currentRole === 'Department Supervisor';
   const isLead = currentRole === 'Lead';
@@ -58,7 +57,7 @@ export default function UserManagementPage() {
   // Manual Form State
   const [formData, setFormData] = useState({
     name: '', email: '', employeeCode: '', role: 'Artist' as Role,
-    departmentId: currentUser?.departmentId || '', leadId: '',
+    departmentId: currentUser?.departmentId || 'dept-comp', leadId: '',
     username: '', password: ''
   });
 
@@ -67,6 +66,7 @@ export default function UserManagementPage() {
   const [selectedUserForCreds, setSelectedUserForCreds] = useState<User | null>(null);
   const [credFormData, setCredFormData] = useState({ username: '', password: '' });
 
+  // FILTERING ENGINE: Enforces the Studio Hierarchy
   const filteredUsers = users.filter(u => {
     const match = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.employeeCode.toLowerCase().includes(searchTerm.toLowerCase());
     if (isPH) return match;
@@ -93,7 +93,7 @@ export default function UserManagementPage() {
       avatarUrl: `https://picsum.photos/seed/${formData.employeeCode}/100/100`
     };
     addUser(newUser, { username: formData.username, tempPassword: formData.password });
-    toast({ title: "Staff Created", description: `${newUser.name} added to SSoT.` });
+    toast({ title: "Staff Created", description: `${newUser.name} added to SM rolling FX SSoT.` });
     setFormData({ ...formData, name: '', email: '', employeeCode: '', username: '', password: '' });
   };
 
@@ -131,20 +131,26 @@ export default function UserManagementPage() {
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Enterprise Identity Hub</span>
               </div>
               <h1 className="text-4xl font-headline text-white mb-2">Staff & Access Management</h1>
-              <p className="text-muted-foreground">Centralized directory for studio onboarding and security lifecycle.</p>
+              <p className="text-muted-foreground">Centralized directory for studio onboarding and security lifecycle management.</p>
             </div>
-            <Button variant="outline" className="border-sidebar-border" onClick={exportCredentials}>
-              <Download className="w-4 h-4 mr-2" /> Export Master List
-            </Button>
+            {(isPH || isSup) && (
+              <Button variant="outline" className="border-sidebar-border" onClick={exportCredentials}>
+                <Download className="w-4 h-4 mr-2" /> Export Master List
+              </Button>
+            )}
           </div>
 
           <Tabs defaultValue="registry" className="w-full">
             <TabsList className="bg-sidebar border border-sidebar-border p-1 h-14 sticky top-0 z-20 shadow-xl">
               <TabsTrigger value="registry" className="px-6 font-bold flex gap-2"><Users className="w-4 h-4" /> User Registry</TabsTrigger>
-              <TabsTrigger value="create" className="px-6 font-bold flex gap-2"><UserPlus className="w-4 h-4" /> Create Staff</TabsTrigger>
-              <TabsTrigger value="import" className="px-6 font-bold flex gap-2"><FileUp className="w-4 h-4" /> Bulk Onboarding</TabsTrigger>
+              {(isPH || isSup) && (
+                <>
+                  <TabsTrigger value="create" className="px-6 font-bold flex gap-2"><UserPlus className="w-4 h-4" /> Create Staff</TabsTrigger>
+                  <TabsTrigger value="import" className="px-6 font-bold flex gap-2"><FileUp className="w-4 h-4" /> Bulk Onboarding</TabsTrigger>
+                </>
+              )}
               <TabsTrigger value="audit" className="px-6 font-bold flex gap-2"><Lock className="w-4 h-4" /> Credentials Audit</TabsTrigger>
-              <TabsTrigger value="matrix" className="px-6 font-bold flex gap-2"><Fingerprint className="w-4 h-4" /> Access Matrix</TabsTrigger>
+              {isPH && <TabsTrigger value="matrix" className="px-6 font-bold flex gap-2"><Fingerprint className="w-4 h-4" /> Access Matrix</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="registry" className="mt-6">
@@ -154,7 +160,7 @@ export default function UserManagementPage() {
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input placeholder="Search employee code or name..." className="pl-10 bg-sidebar border-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                   </div>
-                  <Badge variant="outline" className="border-sidebar-border">{filteredUsers.length} Users Found</Badge>
+                  <Badge variant="outline" className="border-sidebar-border">{filteredUsers.length} Members in Scope</Badge>
                 </div>
                 <Table>
                   <TableHeader className="bg-sidebar-accent/50">
@@ -187,10 +193,12 @@ export default function UserManagementPage() {
                         </TableCell>
                         <TableCell className="pr-6 text-right">
                           <div className="flex justify-end gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => handleOpenCredUpdate(u)}><Edit3 className="w-4 h-4" /></Button>
-                            <Button size="sm" variant="ghost" className={cn(u.isActive ? "text-muted-foreground hover:text-red-500" : "text-green-500")} onClick={() => toggleUserStatus(u.id)}>
-                              {u.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleOpenCredUpdate(u)} title="Update Credentials"><Key className="w-4 h-4" /></Button>
+                            {(isPH || isSup) && u.id !== currentUser?.id && (
+                              <Button size="sm" variant="ghost" className={cn(u.isActive ? "text-muted-foreground hover:text-red-500" : "text-green-500")} onClick={() => toggleUserStatus(u.id)}>
+                                {u.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -222,7 +230,7 @@ export default function UserManagementPage() {
                           <SelectContent className="bg-sidebar border-sidebar-border text-white">
                             <SelectItem value="Artist">Artist</SelectItem>
                             <SelectItem value="Lead">Lead</SelectItem>
-                            <SelectItem value="Department Supervisor">Supervisor</SelectItem>
+                            {isPH && <SelectItem value="Department Supervisor">Supervisor</SelectItem>}
                           </SelectContent>
                         </Select>
                       </div>
@@ -250,7 +258,7 @@ export default function UserManagementPage() {
                     <p className="text-[10px] font-bold text-crimson uppercase tracking-widest">3. Access Credentials (Optional Overrides)</p>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2"><Label>Username</Label><Input className="bg-sidebar-accent border-sidebar-border" placeholder="Leave blank for auto-gen" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} /></div>
-                      <div className="space-y-2"><Label>Password</Label><Input type="password" className="bg-sidebar-accent border-sidebar-border" placeholder="Leave blank for auto-gen" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} /></div>
+                      <div className="space-y-2"><Label>Temporary Password</Label><Input type="password" className="bg-sidebar-accent border-sidebar-border" placeholder="Leave blank for auto-gen" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} /></div>
                     </div>
                   </div>
                   <div className="flex justify-end pt-4"><Button className="bg-crimson h-12 px-12 font-bold shadow-lg shadow-crimson/20" onClick={handleCreateUser}>Commit Member to SSoT</Button></div>
@@ -259,47 +267,20 @@ export default function UserManagementPage() {
             </TabsContent>
 
             <TabsContent value="import" className="mt-6 space-y-6">
-              {!importPreview ? (
-                <Card className="bg-card border-dashed border-2 border-sidebar-border hover:border-crimson/30 transition-all">
-                  <CardContent className="p-24 flex flex-col items-center text-center space-y-6">
-                    <div className="w-20 h-20 bg-crimson/10 rounded-full flex items-center justify-center"><FileSpreadsheet className="w-10 h-10 text-crimson" /></div>
-                    <div className="space-y-2">
-                      <h3 className="text-2xl font-bold text-white">Bulk Employee Onboarding</h3>
-                      <p className="text-sm text-muted-foreground max-w-sm mx-auto">Upload Employee Master file (.xlsx) with columns: EmployeeCode, Name, Email, Dept, Role.</p>
-                    </div>
-                    <div className="flex gap-4">
-                       <Button variant="outline" className="border-sidebar-border">Download Template</Button>
-                       <input type="file" id="bulk-users" className="hidden" onChange={() => setImporting(true)} />
-                       <label htmlFor="bulk-users" className="cursor-pointer bg-crimson text-white px-10 py-3 rounded-lg font-bold shadow-lg hover:scale-105 transition-transform">Select Excel File</label>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-headline text-white flex items-center gap-2"><CheckCircle className="text-green-500 w-5 h-5" /> Import Preview ({importPreview.length} Members)</h3>
-                    <div className="flex gap-3">
-                      <Button variant="outline" onClick={() => setImportPreview(null)}>Discard</Button>
-                      <Button className="bg-crimson font-bold px-8" onClick={() => {bulkImportUsers(importPreview); setImportPreview(null);}}>Finalize Import</Button>
-                    </div>
+              <Card className="bg-card border-dashed border-2 border-sidebar-border hover:border-crimson/30 transition-all">
+                <CardContent className="p-24 flex flex-col items-center text-center space-y-6">
+                  <div className="w-20 h-20 bg-crimson/10 rounded-full flex items-center justify-center"><FileSpreadsheet className="w-10 h-10 text-crimson" /></div>
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-bold text-white">Bulk Employee Onboarding</h3>
+                    <p className="text-sm text-muted-foreground max-w-sm mx-auto">Upload Employee Master file (.xlsx) with columns: EmployeeCode, Name, Email, Dept, Role.</p>
                   </div>
-                  <Card className="bg-card border-none overflow-hidden shadow-2xl">
-                    <Table>
-                      <TableHeader className="bg-sidebar-accent"><TableRow className="border-sidebar-border"><TableHead>Code</TableHead><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead></TableRow></TableHeader>
-                      <TableBody>
-                        {importPreview.map((u, i) => (
-                          <TableRow key={i} className="border-sidebar-border">
-                            <TableCell className="font-mono text-white text-xs">{u.employeeCode}</TableCell>
-                            <TableCell className="font-bold text-white">{u.name}</TableCell>
-                            <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                            <TableCell><Badge variant="outline">{u.role}</Badge></TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </Card>
-                </div>
-              )}
+                  <div className="flex gap-4">
+                      <Button variant="outline" className="border-sidebar-border">Download Template</Button>
+                      <input type="file" id="bulk-users" className="hidden" />
+                      <label htmlFor="bulk-users" className="cursor-pointer bg-crimson text-white px-10 py-3 rounded-lg font-bold shadow-lg hover:scale-105 transition-transform">Select Excel File</label>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="audit" className="mt-6">
@@ -309,7 +290,7 @@ export default function UserManagementPage() {
                  </CardHeader>
                  <Table>
                    <TableHeader className="bg-sidebar-accent/50">
-                     <TableRow className="border-sidebar-border"><TableHead className="pl-6">Employee</TableHead><TableHead>Username</TableHead><TableHead>Temp Password</TableHead><TableHead className="pr-6 text-right">Security Update</TableHead></TableRow>
+                     <TableRow className="border-sidebar-border"><TableHead className="pl-6">Employee</TableHead><TableHead>Username</TableHead><TableHead>Temp Password</TableHead><TableHead className="pr-6 text-right">Security Action</TableHead></TableRow>
                    </TableHeader>
                    <TableBody>
                      {filteredUsers.map(u => {
@@ -321,7 +302,7 @@ export default function UserManagementPage() {
                            <TableCell className="font-mono text-xs">
                              {cred?.tempPassword ? <span className="opacity-40 hover:opacity-100 transition-opacity cursor-help" title="Click Update to change">{cred.tempPassword}</span> : <Badge variant="outline" className="text-green-500 border-green-500/20">Secured</Badge>}
                            </TableCell>
-                           <TableCell className="pr-6 text-right"><Button size="sm" variant="ghost" onClick={() => handleOpenCredUpdate(u)}>Update Auth Profile</Button></TableCell>
+                           <TableCell className="pr-6 text-right"><Button size="sm" variant="ghost" onClick={() => handleOpenCredUpdate(u)}>Issue New Temporary Pass</Button></TableCell>
                          </TableRow>
                        );
                      })}
@@ -332,19 +313,19 @@ export default function UserManagementPage() {
 
             <TabsContent value="matrix" className="mt-6">
               <Card className="bg-card border-none shadow-2xl p-8">
-                <CardHeader className="px-0"><CardTitle className="text-white">Studio Role Matrix</CardTitle></CardHeader>
+                <CardHeader className="px-0"><CardTitle className="text-white">Studio Role Permission Matrix</CardTitle></CardHeader>
                 <div className="space-y-6">
                    <div className="p-4 bg-sidebar-accent/30 rounded-xl border border-sidebar-border">
-                      <h4 className="text-sm font-bold text-crimson mb-2">Production Head</h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed">Full studio access. Can manage all users, projects, and security parameters. Responsible for executive reporting and studio-wide capacity planning.</p>
+                      <h4 className="text-sm font-bold text-crimson mb-2">Production Head (Level 4)</h4>
+                      <p className="text-xs text-muted-foreground leading-relaxed">Full studio master access. Can manage all users, projects, and global security parameters.</p>
                    </div>
                    <div className="p-4 bg-sidebar-accent/30 rounded-xl border border-sidebar-border">
-                      <h4 className="text-sm font-bold text-white mb-2">Department Supervisor</h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed">Scoped to a specific pipeline unit. Can onboard Leads and Artists for their department. Executes final sign-offs on shot production.</p>
+                      <h4 className="text-sm font-bold text-white mb-2">Department Supervisor (Level 3)</h4>
+                      <p className="text-xs text-muted-foreground leading-relaxed">Scoped to a specific pipeline unit. Can onboard Leads and Artists for their department and execute sign-offs.</p>
                    </div>
                    <div className="p-4 bg-sidebar-accent/30 rounded-xl border border-sidebar-border">
-                      <h4 className="text-sm font-bold text-muted-foreground mb-2">Department Lead</h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed">Operational manager for a team of artists. Assigns shots, performs technical QC, and supports artists with credential management for their team only.</p>
+                      <h4 className="text-sm font-bold text-muted-foreground mb-2">Department Lead (Level 2)</h4>
+                      <p className="text-xs text-muted-foreground leading-relaxed">Operational manager for a team of artists. Assigns shots, performs technical QC, and resets team passwords.</p>
                    </div>
                 </div>
               </Card>
@@ -368,7 +349,7 @@ export default function UserManagementPage() {
                 <p className="text-[10px] text-muted-foreground italic flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> This will force a password reset on user's next login.</p>
               </div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => setCredModalOpen(false)}>Cancel</Button><Button className="bg-crimson px-8 font-bold shadow-lg shadow-crimson/20" onClick={() => { if(selectedUserForCreds) updateUserCredentials(selectedUserForCreds.id, credFormData.username, credFormData.password); setCredModalOpen(false); }}>Sync SSoT Credentials</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setCredModalOpen(false)}>Cancel</Button><Button className="bg-crimson px-8 font-bold" onClick={() => { if(selectedUserForCreds) updateUserCredentials(selectedUserForCreds.id, credFormData.username, credFormData.password); setCredModalOpen(false); }}>Sync SSoT Credentials</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       </main>

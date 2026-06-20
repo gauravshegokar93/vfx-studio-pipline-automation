@@ -1,4 +1,3 @@
-
 "use client";
 
 import { create } from 'zustand';
@@ -83,7 +82,16 @@ export const useLuminaStore = create<LuminaState>((set) => ({
   tasks: [],
 
   setCurrentUser: (user) => set({ currentUser: user }),
-  setRole: (role) => set({ currentRole: role }),
+  setRole: (role) => {
+    // When changing role in simulator, also update the currentUser's identity for consistent filtering
+    set((state) => {
+      const targetUser = state.users.find(u => u.role === role);
+      return { 
+        currentRole: role,
+        currentUser: targetUser || state.currentUser
+      };
+    });
+  },
 
   addUser: (user, manualCred) => set((state) => {
     const cred: UserCredential = {
