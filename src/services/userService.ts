@@ -1,5 +1,5 @@
-
 import { User, Leave } from '@/lib/types';
+import { apiClient } from './apiClient';
 
 const MOCK_DELAY = 400;
 
@@ -27,16 +27,33 @@ export const userService = {
     };
   },
 
-  submitLeave: async (leave: Omit<Leave, 'id' | 'status'>): Promise<boolean> => {
-    await new Promise(r => setTimeout(r, 300));
-    // In SQL: INSERT INTO Leaves (UserId, StartDate, EndDate, Type, Status) VALUES (..., 'Pending')
-    return true;
+  submitLeave: async (leave: any): Promise<boolean> => {
+    try {
+      await apiClient.post('/leaves', leave);
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
   },
 
   getLeaves: async (): Promise<Leave[]> => {
-    await new Promise(r => setTimeout(r, MOCK_DELAY));
-    return [
-      { id: 'l1', userId: 'u1', startDate: '2024-06-01', endDate: '2024-06-05', type: 'Vacation', status: 'Approved' }
-    ];
+    try {
+      const res = await apiClient.get('/leaves');
+      return res.data.items || [];
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  },
+
+  updateLeaveStatus: async (id: string, status: string, remarks?: string): Promise<boolean> => {
+    try {
+      await apiClient.put(`/leaves/${id}/status`, { status, remarks });
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
   }
 };

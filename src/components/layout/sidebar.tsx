@@ -41,16 +41,8 @@ import {
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, notifications, fetchNotifications, markNotificationAsRead } = useLuminaStore();
+  const { currentUser } = useLuminaStore();
   const { role: authRole, logout } = useAuth();
-
-  useEffect(() => {
-    if (currentUser) {
-      fetchNotifications();
-    }
-  }, [currentUser, fetchNotifications]);
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const displayName =
     currentUser?.name ??
@@ -65,12 +57,10 @@ export function AppSidebar() {
     
     // Artist Navigation
     { label: 'My Tasks', icon: CheckSquare, href: '/tasks', permission: 'tasks.view' as const },
-    { label: 'My Reviews', icon: Film, href: '/review', permission: 'tasks.approve' as const },
     { label: 'Daily Standup', icon: FileSpreadsheet, href: '/daily-tracking', permission: 'workspace.artist' as const },
     
     // Lead Navigation
     { label: 'Team Tasks', icon: UserCheck, href: '/lead-dashboard', permission: 'teams.view' as const },
-    { label: 'Review Queue', icon: Film, href: '/review', permission: 'workspace.team_lead' as const },
     { label: 'Capacity Planning', icon: Activity, href: '/workload', permission: 'workspace.project_manager' as const },
     
     // Supervisor Navigation
@@ -82,12 +72,10 @@ export function AppSidebar() {
     // Management & Executive Navigation
     { label: 'Staff Directory', icon: ShieldCheck, href: '/users', permission: 'users.view' as const },
     { label: 'Projects', icon: Layers, href: '/projects', permission: 'projects.view' as const },
-    { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', permission: 'projects.create' as const },
     { label: 'Analytics', icon: BarChart3, href: '/analytics', permission: 'reports.view' as const },
     
     // Universal Operations
     { label: 'Leave Requests', icon: Calendar, href: '/leaves', permission: 'leave.approve' as const },
-    { label: 'Notifications', icon: Bell, href: '/notifications', permission: 'notifications.view' as const },
     { label: 'Profile & Settings', icon: Settings, href: '/settings', permission: 'settings.view' as const },
   ];
 
@@ -114,52 +102,7 @@ export function AppSidebar() {
           <span className="font-headline text-lg tracking-tight text-white uppercase">SM rolling FX</span>
         </div>
         
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-white h-8 w-8">
-              <Bell className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 w-4 h-4 bg-crimson rounded-full flex items-center justify-center text-[9px] font-bold text-white animate-pulse">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80 bg-sidebar border-sidebar-border text-white shadow-2xl p-0 overflow-hidden" align="start">
-             <div className="bg-sidebar-accent p-3 border-b border-sidebar-border flex justify-between items-center">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Production Alerts</h4>
-                <Badge variant="outline" className="border-sidebar-border text-[9px]">{unreadCount} New</Badge>
-             </div>
-             <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
-                {notifications.length === 0 ? (
-                  <p className="p-4 text-center text-xs text-muted-foreground">No recent notifications.</p>
-                ) : (
-                  notifications.slice(0, 5).map(n => (
-                    <div 
-                      key={n.id} 
-                      className={cn(
-                        "p-3 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer border-l-2",
-                        !n.isRead ? "border-crimson bg-crimson/5" : "border-transparent"
-                      )}
-                      onClick={() => {
-                        if (!n.isRead) markNotificationAsRead(n.id);
-                        router.push('/notifications');
-                      }}
-                    >
-                      <p className={cn("text-xs mb-1", !n.isRead ? "text-white font-bold" : "text-muted-foreground")}>{n.message}</p>
-                      <p className="text-[10px] text-muted-foreground flex justify-between">
-                        <span>{new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString()}</span>
-                        <span className="text-crimson">{n.type}</span>
-                      </p>
-                    </div>
-                  ))
-                )}
-             </div>
-             <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-muted-foreground hover:text-white rounded-none border-t border-sidebar-border" asChild>
-               <Link href="/notifications">Enter Notification Center</Link>
-             </Button>
-          </PopoverContent>
-        </Popover>
+
       </div>
 
       <div className="px-4 py-2">

@@ -7,6 +7,8 @@ import { apiClient } from '@/services/apiClient';
 interface LuminaState {
   currentUser: User | null;
   currentRole: Role;
+  // In-memory JWT — always up-to-date; avoids stale localStorage reads
+  accessToken: string | null;
   users: User[];
   userCredentials: UserCredential[];
   projects: Project[];
@@ -18,13 +20,10 @@ interface LuminaState {
   roles: any[];
   permissions: any[];
   
-  // Notifications
-  notifications: any[];
-  fetchNotifications: () => Promise<void>;
-  markNotificationAsRead: (id: string) => Promise<void>;
-  markAllNotificationsAsRead: () => Promise<void>;
+
   
   setCurrentUser: (user: User | null) => void;
+  setAccessToken: (token: string | null) => void;
   setRole: (role: Role) => void;
   
   // User Management
@@ -62,6 +61,7 @@ interface LuminaState {
 export const useLuminaStore = create<LuminaState>((set) => ({
   currentUser: null,
   currentRole: 'Production Head',
+  accessToken: null,
   users: [],
   userCredentials: [],
   departments: [],
@@ -72,42 +72,10 @@ export const useLuminaStore = create<LuminaState>((set) => ({
   tasks: [],
   roles: [],
   permissions: [],
-  notifications: [],
 
-  fetchNotifications: async () => {
-    try {
-      const res = await apiClient.get('/notifications');
-      set({ notifications: res.data.notifications || [] });
-    } catch (e) {
-      console.error('[fetchNotifications] API Error:', e);
-    }
-  },
-
-  markNotificationAsRead: async (id: string) => {
-    try {
-      await apiClient.put(`/notifications/${id}/read`);
-      set((state) => ({
-        notifications: state.notifications.map(n => 
-          n.id.toString() === id.toString() ? { ...n, isRead: true } : n
-        )
-      }));
-    } catch (e) {
-      console.error('[markNotificationAsRead] API Error:', e);
-    }
-  },
-
-  markAllNotificationsAsRead: async () => {
-    try {
-      await apiClient.put(`/notifications/read-all`);
-      set((state) => ({
-        notifications: state.notifications.map(n => ({ ...n, isRead: true }))
-      }));
-    } catch (e) {
-      console.error('[markAllNotificationsAsRead] API Error:', e);
-    }
-  },
 
   setCurrentUser: (user) => set({ currentUser: user }),
+  setAccessToken: (token) => set({ accessToken: token }),
   setRole: (role) => {
     set({ currentRole: role });
   },
@@ -115,9 +83,10 @@ export const useLuminaStore = create<LuminaState>((set) => ({
   fetchUsers: async () => {
     try {
       const res = await apiClient.get('/users');
+      console.log('[fetchUsers] SUCCESS status:', res.status, 'count:', res.data.items?.length ?? 0);
       set({ users: res.data.items || [] });
-    } catch (e) {
-      console.error('[fetchUsers] API Error:', e);
+    } catch (e: any) {
+      console.error('[fetchUsers] API Error — status:', e?.response?.status, 'message:', e?.response?.data?.message || e?.message);
     }
   },
   

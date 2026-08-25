@@ -8,7 +8,7 @@ import ProductionHeadDashboard from '@/app/dashboard/production-head-view';
 import LeadDashboardPage from '@/app/lead-dashboard/page';
 import DepartmentQueuePage from '@/app/department-queue/page';
 import ArtistTasksPage from '@/app/tasks/page';
-import ReviewPage from '@/app/review/page';
+
 import ProjectManagementPage from '@/app/projects/page';
 
 export default function UnifiedDashboard() {
@@ -39,8 +39,7 @@ export default function UnifiedDashboard() {
       return <LeadDashboardPage />;
     case 'Artist':
       return <ArtistTasksPage />;
-    case 'QC Artist':
-      return <ReviewPage />;
+
     default:
       return (
         <DashboardLayout>

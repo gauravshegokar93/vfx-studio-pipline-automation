@@ -23,12 +23,10 @@ app.use('/api/assets', require('./routes/assetsRoutes'));
 app.use('/api/production', require('./routes/productionRoutes'));
 app.use('/api/shots', require('./routes/shotsRoutes'));
 app.use('/api/tasks', require('./routes/tasksRoutes'));
-app.use('/api/import', require('./routes/importBidSheetRoutes'));
-app.use('/api/simple-import', require('./routes/simpleImportRoutes'));
-app.use('/api/import-review', require('./routes/importReviewRoutes'));
+
 app.use('/api/attendance', require('./routes/attendanceRoutes'));
 app.use('/api/leaves', require('./routes/leavesRoutes'));
-app.use('/api/notifications', require('./routes/notificationsRoutes'));
+
 app.use('/api/reports', require('./routes/reportsRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
 app.use('/api/sequences', require('./routes/sequencesRoutes'));
