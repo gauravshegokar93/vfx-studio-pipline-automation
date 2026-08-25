@@ -1,0 +1,19 @@
+"use client";
+
+import React from "react";
+import { AppSidebar } from "@/components/layout/sidebar";
+
+interface DashboardLayoutProps {
+  children: React.ReactNode;
+}
+
+export function DashboardLayout({ children }: DashboardLayoutProps) {
+  return (
+    <div className="flex h-screen bg-background overflow-hidden">
+      <AppSidebar />
+      <main className="flex-1 overflow-y-auto scrollbar-hide">
+        {children}
+      </main>
+    </div>
+  );
+}

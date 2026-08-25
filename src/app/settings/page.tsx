@@ -16,6 +16,14 @@ import { Switch } from '@/components/ui/switch';
 export default function SettingsPage() {
   const { currentUser, currentRole } = useLuminaStore();
 
+  const displayName =
+    currentUser?.name ??
+    currentUser?.fullName ??
+    currentUser?.username ??
+    currentUser?.displayName ??
+    'User';
+  const avatarInitial = displayName.charAt(0).toUpperCase();
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <AppSidebar />
@@ -30,10 +38,10 @@ export default function SettingsPage() {
             <div className="space-y-6">
               <Card className="bg-card border-none p-6 text-center">
                 <Avatar className="w-24 h-24 mx-auto mb-4 border-2 border-crimson">
-                  <AvatarImage src={currentUser?.avatarUrl} />
-                  <AvatarFallback className="text-2xl">{currentUser?.name.charAt(0)}</AvatarFallback>
+                  <AvatarImage src={currentUser?.avatarUrl || undefined} />
+                  <AvatarFallback className="text-2xl">{avatarInitial}</AvatarFallback>
                 </Avatar>
-                <h3 className="text-xl font-bold text-white">{currentUser?.name}</h3>
+                <h3 className="text-xl font-bold text-white">{displayName}</h3>
                 <p className="text-xs text-crimson font-bold uppercase tracking-widest mt-1">{currentRole}</p>
                 <p className="text-xs text-muted-foreground mt-4 font-mono">{currentUser?.employeeCode}</p>
                 <Button variant="outline" className="w-full mt-6 text-xs h-8">Change Avatar</Button>
@@ -64,7 +72,7 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs uppercase font-bold text-muted-foreground">Full Name</Label>
-                      <Input className="bg-sidebar-accent border-sidebar-border text-white" defaultValue={currentUser?.name} />
+                      <Input className="bg-sidebar-accent border-sidebar-border text-white" defaultValue={displayName} />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs uppercase font-bold text-muted-foreground">Email Address</Label>

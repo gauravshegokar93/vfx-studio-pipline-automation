@@ -1,5 +1,5 @@
 
-export type Role = 'Production Head' | 'Department Supervisor' | 'Lead' | 'Artist';
+export type Role = 'Super Admin' | 'Admin' | 'Production Head' | 'Department Supervisor' | 'Lead' | 'Artist' | 'QC Artist' | string;
 
 export type PipelineStep = 'Ingest' | 'Prep' | 'Roto' | 'Paint' | 'Matchmove' | 'CG' | 'Comp' | 'QC' | 'Delivery';
 
@@ -9,18 +9,30 @@ export type ReviewStatus = 'Pending' | 'In Review' | 'Changes Requested' | 'Appr
 
 export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected';
 
+export type Priority = 'Low' | 'Medium' | 'High' | 'Critical';
+
 export interface User {
   id: string;
+  userId?: string; // from DB
   employeeCode: string;
   name: string;
+  fullName?: string;
+  username?: string;
+  displayName?: string;
   email: string;
   role: Role;
+  roleName?: string; // from DB
   designation?: string;
   departmentId: string;
+  departmentName?: string; // from DB
+  teamId?: string;
+  teamName?: string; // from DB
   leadId?: string;
   isActive: boolean;
+  IsActive?: boolean; // from DB
   avatarUrl?: string;
   isFirstLogin: boolean;
+  permissions?: string[];
 }
 
 export interface UserCredential {

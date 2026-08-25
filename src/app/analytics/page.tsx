@@ -2,8 +2,9 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { AppSidebar } from '@/components/layout/sidebar';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useLuminaStore } from '@/lib/store';
+import { useAuth } from '@/context/AuthContext';
 import { analyticsService } from '@/services/analyticsService';
 import { 
   Card, 
@@ -43,12 +44,13 @@ import {
 import { cn } from '@/lib/utils';
 
 export default function AnalyticsHub() {
-  const { currentRole, projects, shots, tasks } = useLuminaStore();
-  
+  const { projects, shots, tasks } = useLuminaStore();
+  const { role: authRole } = useAuth();
+
   // Internal Role Isolation
-  const isProdHead = currentRole === 'Production Head';
-  const isSupervisor = currentRole === 'Department Supervisor';
-  const isLead = currentRole === 'Lead';
+  const isProdHead = authRole === 'Production Head';
+  const isSupervisor = authRole === 'Department Supervisor';
+  const isLead = authRole === 'Lead';
 
   // Aggregate Data from Service
   const stats = useMemo(() => analyticsService.getStudioStats(), [tasks, shots, projects]);
@@ -68,10 +70,8 @@ export default function AnalyticsHub() {
   ].filter(t => t.show);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <AppSidebar />
-      <main className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="p-8 space-y-8 pb-20">
+    <DashboardLayout>
+      <div className="p-8 space-y-8 pb-20">
           <div className="flex justify-between items-end">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -251,7 +251,6 @@ export default function AnalyticsHub() {
             </TabsContent>
           </Tabs>
         </div>
-      </main>
-    </div>
+    </DashboardLayout>
   );
 }

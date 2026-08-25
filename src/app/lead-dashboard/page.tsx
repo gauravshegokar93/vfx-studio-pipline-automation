@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { AppSidebar } from '@/components/layout/sidebar';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useLuminaStore } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -80,10 +80,8 @@ export default function LeadDashboardPage() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <AppSidebar />
-      <main className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="p-8 space-y-8 pb-20">
+    <DashboardLayout>
+      <div className="p-8 space-y-8 pb-20">
           <div className="flex justify-between items-end">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -288,7 +286,6 @@ export default function LeadDashboardPage() {
             )}
           </SheetContent>
         </Sheet>
-      </main>
-    </div>
+    </DashboardLayout>
   );
 }

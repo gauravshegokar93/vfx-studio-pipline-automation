@@ -2,9 +2,9 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { AppSidebar } from '@/components/layout/sidebar';
-import { 
-  Play, 
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import {
+  Play,
   Pause, 
   Clock, 
   CheckCircle2,
@@ -104,10 +104,8 @@ export default function ArtistTasksPage() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <AppSidebar />
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-8 space-y-8">
+    <DashboardLayout>
+      <div className="p-8 space-y-8">
           <div className="flex justify-between items-end">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -283,7 +281,6 @@ export default function ArtistTasksPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </DashboardLayout>
   );
 }

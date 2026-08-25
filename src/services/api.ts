@@ -40,7 +40,8 @@ export const apiService = {
           id: 't1', shotId: 's1', pipelineStep: 'Comp', taskName: 'Main Hero Comp', 
           assignedArtistId: artistId, leadId: 'l1', supervisorId: 'sup1', 
           bidHours: 16, spentHours: 4, remainingHours: 12, status: 'In Progress', 
-          startDate: '2024-05-01', dueDate: '2024-05-10', priority: 'High' 
+          startDate: '2024-05-01', dueDate: '2024-05-10', priority: 'High',
+          progress: 25, internalEta: '2024-05-10', reviewStatus: 'Pending'
         }
       ];
     },
@@ -53,8 +54,8 @@ export const apiService = {
     getTeam: async (leadId: string): Promise<User[]> => {
       await new Promise(r => setTimeout(r, MOCK_DELAY));
       return [
-        { id: 'a1', employeeCode: 'E101', name: 'John Doe', email: 'john@vfx.com', role: 'Artist', departmentId: 'dept-comp', isActive: true },
-        { id: 'a2', employeeCode: 'E102', name: 'Jane Smith', email: 'jane@vfx.com', role: 'Artist', departmentId: 'dept-comp', isActive: true }
+        { id: 'a1', employeeCode: 'E101', name: 'John Doe', email: 'john@vfx.com', role: 'Artist', departmentId: 'dept-comp', isActive: true, isFirstLogin: false },
+        { id: 'a2', employeeCode: 'E102', name: 'Jane Smith', email: 'jane@vfx.com', role: 'Artist', departmentId: 'dept-comp', isActive: true, isFirstLogin: false }
       ];
     }
   }

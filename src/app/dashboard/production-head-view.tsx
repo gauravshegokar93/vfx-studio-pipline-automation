@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { AppSidebar } from '@/components/layout/sidebar';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { 
   Briefcase,
   TrendingUp,
@@ -57,10 +57,8 @@ export default function ProductionHeadDashboard() {
   ];
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <AppSidebar />
-      <main className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="p-8 space-y-8 pb-20">
+    <DashboardLayout>
+      <div className="p-8 space-y-8 pb-20">
           <div className="flex justify-between items-end">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -243,7 +241,6 @@ export default function ProductionHeadDashboard() {
             </>
           )}
         </div>
-      </main>
-    </div>
+    </DashboardLayout>
   );
 }

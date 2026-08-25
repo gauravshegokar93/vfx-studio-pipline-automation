@@ -2,13 +2,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { AppSidebar } from '@/components/layout/sidebar';
-import { 
-  PlayCircle, 
-  MessageSquare, 
-  ThumbsUp, 
-  ThumbsDown, 
-  Clock, 
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import {
+  PlayCircle,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+  Clock,
   Filter,
   XCircle,
   Sparkles
@@ -54,8 +54,7 @@ export default function ReviewPage() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <AppSidebar />
+    <DashboardLayout>
       <main className="flex-1 overflow-y-auto flex">
         <div className={cn("p-8 space-y-6 transition-all duration-300", selectedTask ? "w-1/2" : "w-full")}>
           <div className="flex justify-between items-end">
@@ -174,6 +173,6 @@ export default function ReviewPage() {
           </div>
         )}
       </main>
-    </div>
+    </DashboardLayout>
   );
 }

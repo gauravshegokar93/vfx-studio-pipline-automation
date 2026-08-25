@@ -1,16 +1,16 @@
 
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Film, 
-  Layers, 
-  CheckSquare, 
-  Users, 
-  BarChart3, 
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  LayoutDashboard,
+  Film,
+  Layers,
+  CheckSquare,
+  Users,
+  BarChart3,
   LogOut,
   Search,
   Table as TableIcon,
@@ -22,59 +22,87 @@ import {
   UserCheck,
   FileSpreadsheet,
   Gauge,
-  UserCircle,
   Settings,
   ShieldCheck,
-  Briefcase
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useLuminaStore } from '@/lib/store';
+import { useAuth } from '@/context/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  Popover, 
-  PopoverContent, 
-  PopoverTrigger 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
 } from '@/components/ui/popover';
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { currentUser, currentRole, setRole } = useLuminaStore();
+  const router = useRouter();
+  const { currentUser, notifications, fetchNotifications, markNotificationAsRead } = useLuminaStore();
+  const { role: authRole, logout } = useAuth();
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchNotifications();
+    }
+  }, [currentUser, fetchNotifications]);
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const displayName =
+    currentUser?.name ??
+    currentUser?.fullName ??
+    currentUser?.username ??
+    currentUser?.displayName ??
+    'User';
+  const avatarInitial = displayName.charAt(0).toUpperCase();
 
   const navItems = [
-    { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
+    { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', permission: 'dashboard.view' as const },
     
     // Artist Navigation
-    { label: 'My Tasks', icon: CheckSquare, href: '/tasks', roles: ['Artist', 'Lead', 'Production Head'] },
-    { label: 'My Reviews', icon: Film, href: '/review', roles: ['Artist', 'Production Head'] },
-    { label: 'Daily Standup', icon: FileSpreadsheet, href: '/daily-tracking', roles: ['Artist', 'Production Head'] },
+    { label: 'My Tasks', icon: CheckSquare, href: '/tasks', permission: 'tasks.view' as const },
+    { label: 'My Reviews', icon: Film, href: '/review', permission: 'tasks.approve' as const },
+    { label: 'Daily Standup', icon: FileSpreadsheet, href: '/daily-tracking', permission: 'workspace.artist' as const },
     
     // Lead Navigation
-    { label: 'Team Tasks', icon: UserCheck, href: '/lead-dashboard', roles: ['Lead', 'Production Head'] },
-    { label: 'Review Queue', icon: Film, href: '/review', roles: ['Lead', 'Department Supervisor', 'Production Head'] },
-    { label: 'Capacity Planning', icon: Activity, href: '/workload', roles: ['Lead', 'Production Head'] },
+    { label: 'Team Tasks', icon: UserCheck, href: '/lead-dashboard', permission: 'teams.view' as const },
+    { label: 'Review Queue', icon: Film, href: '/review', permission: 'workspace.team_lead' as const },
+    { label: 'Capacity Planning', icon: Activity, href: '/workload', permission: 'workspace.project_manager' as const },
     
     // Supervisor Navigation
-    { label: 'Department Queue', icon: LayoutList, href: '/department-queue', roles: ['Department Supervisor', 'Production Head'] },
-    { label: 'Department Progress', icon: Gauge, href: '/department-progress', roles: ['Department Supervisor', 'Production Head'] },
-    { label: 'Artist Allocation', icon: Users, href: '/workload', roles: ['Department Supervisor', 'Production Head'] },
-    { label: 'Calendar', icon: Calendar, href: '/scheduling', roles: ['Department Supervisor', 'Production Head'] },
+    { label: 'Department Queue', icon: LayoutList, href: '/department-queue', permission: 'departments.view' as const },
+    { label: 'Department Progress', icon: Gauge, href: '/department-progress', permission: 'workspace.production_head' as const },
+    { label: 'Artist Allocation', icon: Users, href: '/workload', permission: 'artists.view' as const },
+    { label: 'Calendar', icon: Calendar, href: '/scheduling', permission: 'leave.view' as const },
 
     // Management & Executive Navigation
-    { label: 'Staff Directory', icon: ShieldCheck, href: '/users', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
-    { label: 'Projects', icon: Layers, href: '/projects', roles: ['Production Head'] },
-    { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', roles: ['Production Head'] },
-    { label: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['Production Head', 'Department Supervisor', 'Lead'] },
+    { label: 'Staff Directory', icon: ShieldCheck, href: '/users', permission: 'users.view' as const },
+    { label: 'Projects', icon: Layers, href: '/projects', permission: 'projects.view' as const },
+    { label: 'Import Bid Sheet', icon: TableIcon, href: '/import', permission: 'projects.create' as const },
+    { label: 'Analytics', icon: BarChart3, href: '/analytics', permission: 'reports.view' as const },
     
     // Universal Operations
-    { label: 'Leave Requests', icon: Calendar, href: '/leaves' },
-    { label: 'Notifications', icon: Bell, href: '/notifications' },
-    { label: 'Profile & Settings', icon: Settings, href: '/settings' },
+    { label: 'Leave Requests', icon: Calendar, href: '/leaves', permission: 'leave.approve' as const },
+    { label: 'Notifications', icon: Bell, href: '/notifications', permission: 'notifications.view' as const },
+    { label: 'Profile & Settings', icon: Settings, href: '/settings', permission: 'settings.view' as const },
   ];
 
-  const filteredItems = navItems.filter(item => 
-    !item.roles || item.roles.includes(currentRole)
-  );
+  // Get user's permissions from context/store
+  const userPermissions = (currentUser as any)?.permissions || [];
+  
+  // Filter items by permission
+  const filteredItems = navItems.filter(item => {
+    if (!item.permission) return true;
+    
+    // Super Admin and Admin have access to everything
+    if (authRole === 'Super Admin' || authRole === 'Admin') return true;
+    
+    return userPermissions.includes(item.permission);
+  });
 
   return (
     <div className="flex flex-col h-screen w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border overflow-hidden shrink-0">
@@ -90,18 +118,42 @@ export function AppSidebar() {
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-white h-8 w-8">
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-crimson rounded-full animate-pulse"></span>
+              {unreadCount > 0 && (
+                <span className="absolute top-0 right-0 w-4 h-4 bg-crimson rounded-full flex items-center justify-center text-[9px] font-bold text-white animate-pulse">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 bg-sidebar border-sidebar-border text-white shadow-2xl p-0 overflow-hidden" align="start">
-             <div className="bg-sidebar-accent p-3 border-b border-sidebar-border">
+             <div className="bg-sidebar-accent p-3 border-b border-sidebar-border flex justify-between items-center">
                 <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Production Alerts</h4>
+                <Badge variant="outline" className="border-sidebar-border text-[9px]">{unreadCount} New</Badge>
              </div>
              <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
-                <div className="p-3 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer">
-                  <p className="text-xs text-white mb-1">New task: <span className="text-crimson font-bold">SH_010 Hero Comp</span></p>
-                  <p className="text-[10px] text-muted-foreground">Allocated by Supervisor • 5m ago</p>
-                </div>
+                {notifications.length === 0 ? (
+                  <p className="p-4 text-center text-xs text-muted-foreground">No recent notifications.</p>
+                ) : (
+                  notifications.slice(0, 5).map(n => (
+                    <div 
+                      key={n.id} 
+                      className={cn(
+                        "p-3 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer border-l-2",
+                        !n.isRead ? "border-crimson bg-crimson/5" : "border-transparent"
+                      )}
+                      onClick={() => {
+                        if (!n.isRead) markNotificationAsRead(n.id);
+                        router.push('/notifications');
+                      }}
+                    >
+                      <p className={cn("text-xs mb-1", !n.isRead ? "text-white font-bold" : "text-muted-foreground")}>{n.message}</p>
+                      <p className="text-[10px] text-muted-foreground flex justify-between">
+                        <span>{new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString()}</span>
+                        <span className="text-crimson">{n.type}</span>
+                      </p>
+                    </div>
+                  ))
+                )}
              </div>
              <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-muted-foreground hover:text-white rounded-none border-t border-sidebar-border" asChild>
                <Link href="/notifications">Enter Notification Center</Link>
@@ -140,40 +192,27 @@ export function AppSidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-sidebar-border bg-sidebar-accent/20">
-        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2 flex items-center gap-2">
-          <UserCircle className="w-3 h-3" /> Role Matrix Simulator
-        </p>
-        <div className="grid grid-cols-2 gap-1">
-          {['Production Head', 'Department Supervisor', 'Lead', 'Artist'].map(r => (
-            <button
-              key={r}
-              onClick={() => setRole(r as any)}
-              className={cn(
-                "text-[8px] px-2 py-1.5 rounded border transition-colors truncate",
-                currentRole === r ? "bg-crimson text-white border-crimson" : "text-muted-foreground border-sidebar-border hover:bg-sidebar-accent"
-              )}
-            >
-              {r.split(' ')[0]} {r.split(' ')[1] || ''}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="mt-auto p-4 bg-sidebar-accent/50">
         <div className="flex items-center gap-3 mb-4">
           <Avatar className="h-9 w-9 border border-sidebar-border">
-            <AvatarImage src={currentUser?.avatarUrl} />
-            <AvatarFallback>{currentUser?.name.charAt(0)}</AvatarFallback>
+            <AvatarImage src={currentUser?.avatarUrl || undefined} />
+            <AvatarFallback>{avatarInitial}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col overflow-hidden">
-            <span className="text-sm font-medium text-white truncate">{currentUser?.name}</span>
-            <span className="text-[10px] text-crimson font-bold uppercase tracking-tighter">{currentRole}</span>
+            <span className="text-sm font-medium text-white truncate">{displayName}</span>
+            <span className="text-[10px] text-crimson font-bold uppercase tracking-tighter">{authRole}</span>
           </div>
         </div>
         
-        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-white hover:bg-sidebar-accent p-2 h-auto text-xs" asChild>
-          <Link href="/dashboard"><LogOut className="w-4 h-4 mr-2" /> Sign Out</Link>
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-muted-foreground hover:text-white hover:bg-sidebar-accent p-2 h-auto text-xs"
+          onClick={() => {
+            logout();
+            router.replace("/login");
+          }}
+        >
+          <LogOut className="w-4 h-4 mr-2" /> Sign Out
         </Button>
       </div>
     </div>

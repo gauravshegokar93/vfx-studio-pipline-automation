@@ -1,14 +1,15 @@
 
 "use client";
 
-import React, { useState } from 'react';
-import { AppSidebar } from '@/components/layout/sidebar';
+import { useState, type ChangeEvent } from 'react';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useLuminaStore } from '@/lib/store';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { PipelineStep, Task } from '@/lib/types';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LayoutList, ShieldCheck, AlertCircle, CheckCircle, Film, UserCircle, Briefcase, Plus } from 'lucide-react';
+import { LayoutList, ShieldCheck, AlertCircle, CheckCircle, UserCircle, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Dialog, 
@@ -23,6 +24,15 @@ import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
 
+type LeadDepartment = Extract<PipelineStep, 'Comp' | 'Paint'>;
+
+interface LeadOption {
+  id: string;
+  name: string;
+  department: LeadDepartment;
+  activeShots: number;
+}
+
 export default function DepartmentQueuePage() {
   const { tasks, shots, assignTaskLead, supervisorApproveTask } = useLuminaStore();
   
@@ -31,7 +41,7 @@ export default function DepartmentQueuePage() {
   const unassignedTasks = tasks.filter(t => !t.leadId);
   const reviewTasks = tasks.filter(t => t.status === 'Pending Review' && t.reviewStatus === 'Approved');
 
-  const leads = [
+  const leads: LeadOption[] = [
     { id: 'l1', name: 'Kyle Reese', department: 'Comp', activeShots: 4 },
     { id: 'l2', name: 'John Matrix', department: 'Comp', activeShots: 2 },
     { id: 'l3', name: 'Zoe Chen', department: 'Paint', activeShots: 3 },
@@ -39,10 +49,10 @@ export default function DepartmentQueuePage() {
   ];
 
   const [supReviewModalOpen, setSupReviewModalOpen] = useState(false);
-  const [selectedTaskForSupReview, setSelectedTaskForSupReview] = useState<any>(null);
+  const [selectedTaskForSupReview, setSelectedTaskForSupReview] = useState<Task | null>(null);
   const [supComment, setSupComment] = useState('');
 
-  const handleOpenSupReview = (task: any) => {
+  const handleOpenSupReview = (task: Task) => {
     setSelectedTaskForSupReview(task);
     setSupComment(task.latestSupComment || '');
     setSupReviewModalOpen(true);
@@ -59,10 +69,8 @@ export default function DepartmentQueuePage() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <AppSidebar />
-      <main className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="p-8 space-y-8">
+    <DashboardLayout>
+      <div className="p-8 space-y-8">
           <div className="flex justify-between items-end">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -118,7 +126,7 @@ export default function DepartmentQueuePage() {
                               </DialogHeader>
                               <div className="space-y-3 py-4">
                                 <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-2 px-1">Available Leads ({task.pipelineStep} Dept)</p>
-                                {leads.filter(l => l.department === task.pipelineStep).map(lead => (
+                                {leads.filter((lead) => lead.department === task.pipelineStep).map((lead) => (
                                   <div key={lead.id} className="flex items-center justify-between p-4 bg-sidebar-accent rounded-xl border border-sidebar-border hover:border-crimson cursor-pointer transition-all group" onClick={() => {
                                     assignTaskLead(task.id, lead.id);
                                     toast({ title: "Lead Assigned", description: `${lead.name} is now supervising ${getShotName(task.shotId)}` });
@@ -133,7 +141,7 @@ export default function DepartmentQueuePage() {
                                     <Button size="sm" variant="ghost" className="group-hover:text-crimson">Select</Button>
                                   </div>
                                 ))}
-                                {leads.filter(l => l.department === task.pipelineStep).length === 0 && (
+                                {leads.filter((lead) => lead.department === task.pipelineStep).length === 0 && (
                                   <div className="p-8 text-center bg-sidebar-accent/20 rounded-xl border border-dashed border-sidebar-border">
                                     <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
                                     <p className="text-sm text-muted-foreground italic">No leads found for {task.pipelineStep} department.</p>
@@ -215,7 +223,7 @@ export default function DepartmentQueuePage() {
                    </CardTitle>
                 </CardHeader>
                 <div className="space-y-8">
-                  {leads.map(lead => (
+                  {leads.map((lead) => (
                     <div key={lead.id} className="space-y-3">
                        <div className="flex justify-between items-center text-xs">
                          <div className="flex flex-col">
@@ -268,7 +276,7 @@ export default function DepartmentQueuePage() {
                   className="bg-sidebar-accent border-sidebar-border h-40 text-sm focus:ring-crimson" 
                   placeholder="Final feedback or delivery sign-off instructions..."
                   value={supComment}
-                  onChange={(e) => setSupComment(e.target.value)}
+                  onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setSupComment(event.target.value)}
                 />
               </div>
             </div>
@@ -278,7 +286,6 @@ export default function DepartmentQueuePage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </DashboardLayout>
   );
 }
