@@ -31,6 +31,7 @@ app.use('/api/reports', require('./routes/reportsRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
 app.use('/api/sequences', require('./routes/sequencesRoutes'));
 app.use('/api/assignments', require('./routes/assignmentsRoutes'));
+app.use('/api/import', require('./routes/importRoutes'));
 // const authRoutes = require("./modules/auth");
 // const userRoutes = require("./modules/master/user/user.routes");
 // app.use("/api/auth", authRoutes);

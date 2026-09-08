@@ -72,6 +72,7 @@ export function AppSidebar() {
     // Management & Executive Navigation
     { label: 'Staff Directory', icon: ShieldCheck, href: '/users', permission: 'users.view' as const },
     { label: 'Projects', icon: Layers, href: '/projects', permission: 'projects.view' as const },
+    { label: 'Bid Sheet Import', icon: TableIcon, href: '/import', permission: 'projects.view' as const },
     { label: 'Analytics', icon: BarChart3, href: '/analytics', permission: 'reports.view' as const },
     
     // Universal Operations
