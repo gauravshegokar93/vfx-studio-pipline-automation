@@ -79,6 +79,12 @@ export default function UserManagementPage() {
     load();
   }, [fetchUsers, fetchRoles, fetchPermissions, fetchDepartments, fetchTeams]);
 
+  useEffect(() => {
+    if (departments.length > 0 && !formData.departmentId) {
+      setFormData(prev => ({ ...prev, departmentId: departments[0].id?.toString() || '' }));
+    }
+  }, [departments, formData.departmentId]);
+
   const isPH = currentUser?.role === 'Production Head' || currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin';
   const isSup = currentUser?.role === 'Project Manager'; 
   const isLead = currentUser?.role === 'Team Lead';
@@ -127,8 +133,8 @@ export default function UserManagementPage() {
         email: formData.email,
         role: formData.role,
         departmentId: formData.departmentId,
-        teamId: formData.teamId,
-        leadId: formData.leadId,
+        teamId: formData.teamId === 'none' ? null : (formData.teamId || null),
+        leadId: formData.leadId === 'none' ? null : (formData.leadId || null),
         password: trimmedPassword
       };
 
@@ -152,7 +158,7 @@ export default function UserManagementPage() {
       });
 
       toast({ title: "Staff Created", description: `${formData.name} added to SSoT with configured access.` });
-      setFormData({ ...formData, name: '', email: '', employeeCode: '', username: '', password: '', selectedModules: [] });
+      setFormData({ ...formData, name: '', email: '', employeeCode: '', username: '', password: '', teamId: '', leadId: '', selectedModules: [] });
       fetchUsers();
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error', description: e.response?.data?.message || 'Failed to create user' });
@@ -380,6 +386,7 @@ export default function UserManagementPage() {
                           <Select value={formData.leadId} onValueChange={val => setFormData({...formData, leadId: val})}>
                             <SelectTrigger className="bg-sidebar-accent border-sidebar-border"><SelectValue placeholder="Select Lead" /></SelectTrigger>
                             <SelectContent className="bg-sidebar border-sidebar-border text-white">
+                              <SelectItem value="none">No Reporting Lead</SelectItem>
                               {leadsInDept.map(l => <SelectItem key={l.userId || l.id} value={(l.userId || l.id)?.toString() || ''}>{l.fullName || l.name}</SelectItem>)}
                             </SelectContent>
                           </Select>

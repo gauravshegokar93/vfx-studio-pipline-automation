@@ -36,17 +36,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 
 export default function ArtistTasksPage() {
-  const { tasks, shots, currentUser, updateTaskStatus, artistUpdateProgress } = useLuminaStore();
+  const { tasks, shots, currentUser, updateTaskStatus } = useLuminaStore();
   const { toast } = useToast();
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [seconds, setSeconds] = useState(0);
-
-  // Modal State
-  const [updateModalOpen, setUpdateModalOpen] = useState(false);
-  const [selectedTaskForUpdate, setSelectedTaskForUpdate] = useState<any>(null);
-  const [progressValue, setProgressValue] = useState(0);
-  const [commentValue, setCommentValue] = useState('');
-  const [etaValue, setEtaValue] = useState('');
 
   const artistTasks = tasks.filter(t => t.assignedArtistId === currentUser?.id || t.assignedArtistId === 'u3');
   
@@ -58,50 +49,7 @@ export default function ArtistTasksPage() {
   const totalUtilizedBid = artistTasks.reduce((acc, t) => acc + t.spentHours, 0);
   const totalRemainingBid = artistTasks.reduce((acc, t) => acc + t.remainingHours, 0);
 
-  useEffect(() => {
-    let interval: any;
-    if (activeTaskId) {
-      interval = setInterval(() => {
-        setSeconds(s => s + 1);
-      }, 1000);
-    } else {
-      setSeconds(0);
-    }
-    return () => clearInterval(interval);
-  }, [activeTaskId]);
 
-  const formatTime = (totalSeconds: number) => {
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const handleStartTimer = (taskId: string) => {
-    setActiveTaskId(taskId);
-    updateTaskStatus(taskId, 'In Progress');
-    toast({ title: "Timer Started", description: `Working on ${getShotName(tasks.find(t => t.id === taskId)?.shotId || "")}` });
-  };
-
-  const handlePauseTimer = (taskId: string) => {
-    setActiveTaskId(null);
-    toast({ title: "Timer Paused", description: "Progress synced to SSoT." });
-  };
-
-  const handleOpenUpdate = (task: any) => {
-    setSelectedTaskForUpdate(task);
-    setProgressValue(task.progress || 0);
-    setEtaValue(task.internalEta || task.dueDate);
-    setCommentValue(task.latestArtistComment || '');
-    setUpdateModalOpen(true);
-  };
-
-  const handleCommitUpdate = () => {
-    if (!selectedTaskForUpdate) return;
-    artistUpdateProgress(selectedTaskForUpdate.id, progressValue, commentValue, etaValue);
-    setUpdateModalOpen(false);
-    toast({ title: "Task Updated", description: "Production state synchronized." });
-  };
 
   return (
     <DashboardLayout>
@@ -115,15 +63,6 @@ export default function ArtistTasksPage() {
               <h1 className="text-4xl font-headline text-white mb-2">My Workbench</h1>
               <p className="text-muted-foreground">Managing your shot-based pipeline assignments.</p>
             </div>
-            {activeTaskId && (
-              <div className="flex items-center gap-4 bg-crimson/10 px-6 py-3 rounded-xl border border-crimson/30 animate-pulse">
-                <Timer className="text-crimson w-5 h-5" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] text-crimson font-bold uppercase">Active: {getShotName(tasks.find(t => t.id === activeTaskId)?.shotId || "")}</span>
-                  <span className="text-2xl font-mono text-crimson font-bold leading-none">{formatTime(seconds)}</span>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -166,12 +105,10 @@ export default function ArtistTasksPage() {
                 </TableHeader>
                 <TableBody>
                   {artistTasks.map((task) => {
-                    const isActive = activeTaskId === task.id;
                     const shotName = getShotName(task.shotId);
                     return (
                       <TableRow key={task.id} className={cn(
-                        "border-sidebar-border h-20 transition-all",
-                        isActive && "bg-crimson/5 border-crimson/30"
+                        "border-sidebar-border h-20 transition-all"
                       )}>
                         <TableCell className="pl-6 font-bold text-white text-lg">{shotName}</TableCell>
                         <TableCell><Badge variant="outline" className="text-crimson border-crimson/20">{task.pipelineStep}</Badge></TableCell>
@@ -201,18 +138,6 @@ export default function ArtistTasksPage() {
                         )}>{task.remainingHours}h</TableCell>
                         <TableCell className="pr-6 text-right">
                           <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="outline" className="border-sidebar-border hover:bg-sidebar-accent" onClick={() => handleOpenUpdate(task)}>
-                              <FileEdit className="w-4 h-4 mr-2" /> Update
-                            </Button>
-                            {isActive ? (
-                              <Button size="sm" variant="outline" className="border-crimson text-crimson" onClick={() => handlePauseTimer(task.id)}>
-                                <Pause className="w-4 h-4" />
-                              </Button>
-                            ) : (
-                              <Button size="sm" className="bg-crimson hover:bg-crimson/90" onClick={() => handleStartTimer(task.id)}>
-                                <Play className="w-4 h-4" />
-                              </Button>
-                            )}
                             <Button size="sm" variant="outline" className="border-sidebar-border" asChild>
                               <Link href={`/tasks/${task.id}`}>
                                 <ExternalLink className="w-4 h-4" />
@@ -235,52 +160,7 @@ export default function ArtistTasksPage() {
           </Card>
         </div>
 
-        {/* Artist Progress Update Dialog */}
-        <Dialog open={updateModalOpen} onOpenChange={setUpdateModalOpen}>
-          <DialogContent className="bg-sidebar border-sidebar-border text-white">
-            <DialogHeader>
-              <DialogTitle>Update Progress: {getShotName(selectedTaskForUpdate?.shotId || "")}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6 py-4">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label className="text-xs uppercase font-bold text-muted-foreground">Completion Percentage</Label>
-                  <span className="text-xs font-bold text-crimson">{progressValue}%</span>
-                </div>
-                <Slider 
-                  value={[progressValue]} 
-                  onValueChange={(val) => setProgressValue(val[0])} 
-                  max={100} 
-                  step={5}
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs uppercase font-bold text-muted-foreground">Internal ETA</Label>
-                <Input 
-                  type="date" 
-                  className="bg-sidebar-accent border-sidebar-border" 
-                  value={etaValue} 
-                  onChange={(e) => setEtaValue(e.target.value)} 
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs uppercase font-bold text-muted-foreground">Work Log / Comments</Label>
-                <Textarea 
-                  placeholder="Describe your progress or technical blockers..." 
-                  className="bg-sidebar-accent border-sidebar-border h-24" 
-                  value={commentValue}
-                  onChange={(e) => setCommentValue(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setUpdateModalOpen(false)}>Cancel</Button>
-              <Button className="bg-crimson px-6 font-bold" onClick={handleCommitUpdate}>Commit to SSoT</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
     </DashboardLayout>
   );
 }

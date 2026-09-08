@@ -58,6 +58,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session.user) {
           useLuminaStore.getState().setCurrentUser(session.user);
         }
+        // *** KEY FIX: sync the stored token to the in-memory store so
+        // apiClient never reads a stale/expired token from localStorage ***
+        if (session.token) {
+          useLuminaStore.getState().setAccessToken(session.token);
+        }
       } else {
         setState((prev) => ({ ...prev, loading: false }));
       }
@@ -90,6 +95,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       useLuminaStore.getState().setCurrentUser(data.user);
+      // *** KEY FIX: push new token to in-memory store immediately after login ***
+      useLuminaStore.getState().setAccessToken(data.token);
     } catch {
       // Ignore storage errors
     }
@@ -119,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.removeItem(STORAGE_KEY);
       useLuminaStore.getState().setCurrentUser(null);
+      useLuminaStore.getState().setAccessToken(null);
     } catch {
       // Ignore storage errors
     }

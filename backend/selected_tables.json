@@ -1,0 +1,884 @@
+{
+  "ImportBatch": [
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "ImportBatchID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "BatchNo",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "BatchName",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "ProjectID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "ClientID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "ImportType",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "SourceFileName",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "SourceFilePath",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "TotalRecords",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "SuccessRecords",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "FailedRecords",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "DuplicateRecords",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "ImportStatus",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "StartedBy",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "StartedOn",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "CompletedOn",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "Remarks",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "IsActive",
+      "DATA_TYPE": "bit",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "IsDeleted",
+      "DATA_TYPE": "bit",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "CreatedDate",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "ModifiedDate",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatch",
+      "COLUMN_NAME": "RowVersion",
+      "DATA_TYPE": "timestamp",
+      "IS_NULLABLE": "NO"
+    }
+  ],
+  "ImportBatchDetail": [
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "ImportBatchDetailID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "ImportBatchID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "RowNumber",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "EntityType",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "EntityCode",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "EntityName",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "ValidationStatus",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "ErrorMessage",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "ImportedRecordID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "ImportedOn",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "Remarks",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchDetail",
+      "COLUMN_NAME": "CreatedDate",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "ImportBatchRow": [
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "BatchRowID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "ImportBatchID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "RowNumber",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "ClientShotName",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "ShotName",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "ShotType",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "Episode",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "FrameRange",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "CutSummary",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "VFXWorkDescription",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "Complexity",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "RotoBid",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "PaintBid",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "CompBid",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "CGBid",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "RetimeRepo",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "TotalBid",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "Artist",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "Lead",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "StartDate",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "ETA",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "Status",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "ClientETA",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "DeliveryDate",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "ValidationStatus",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "ValidationMessage",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "CreatedDate",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ImportBatchRow",
+      "COLUMN_NAME": "RowVersion",
+      "DATA_TYPE": "timestamp",
+      "IS_NULLABLE": "NO"
+    }
+  ],
+  "ProjectMaster": [
+    {
+      "TABLE_NAME": "ProjectMaster",
+      "COLUMN_NAME": "ProjectId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ProjectMaster",
+      "COLUMN_NAME": "ClientId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ProjectMaster",
+      "COLUMN_NAME": "ProjectTypeId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ProjectMaster",
+      "COLUMN_NAME": "ProjectCode",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ProjectMaster",
+      "COLUMN_NAME": "ProjectName",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ProjectMaster",
+      "COLUMN_NAME": "StartDate",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ProjectMaster",
+      "COLUMN_NAME": "EndDate",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ProjectMaster",
+      "COLUMN_NAME": "StatusId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "ReelMaster": [
+    {
+      "TABLE_NAME": "ReelMaster",
+      "COLUMN_NAME": "ReelId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ReelMaster",
+      "COLUMN_NAME": "ProjectId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ReelMaster",
+      "COLUMN_NAME": "EpisodeId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ReelMaster",
+      "COLUMN_NAME": "ReelName",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "ShotMaster": [
+    {
+      "TABLE_NAME": "ShotMaster",
+      "COLUMN_NAME": "ShotId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "ShotMaster",
+      "COLUMN_NAME": "SequenceId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ShotMaster",
+      "COLUMN_NAME": "ShotCode",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ShotMaster",
+      "COLUMN_NAME": "FrameStart",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ShotMaster",
+      "COLUMN_NAME": "FrameEnd",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ShotMaster",
+      "COLUMN_NAME": "Duration",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ShotMaster",
+      "COLUMN_NAME": "ThumbnailPath",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ShotMaster",
+      "COLUMN_NAME": "StatusId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "TaskMaster": [
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "TaskID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "ShotID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "TaskCode",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "TaskName",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "WorkflowStageID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "PriorityID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "StatusID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "EstimatedHours",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "StartDate",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "DueDate",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "Description",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "IsActive",
+      "DATA_TYPE": "bit",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "IsDeleted",
+      "DATA_TYPE": "bit",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "CreatedBy",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "CreatedDate",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "ModifiedBy",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "ModifiedDate",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskMaster",
+      "COLUMN_NAME": "RowVersion",
+      "DATA_TYPE": "timestamp",
+      "IS_NULLABLE": "NO"
+    }
+  ],
+  "DepartmentMaster": [
+    {
+      "TABLE_NAME": "DepartmentMaster",
+      "COLUMN_NAME": "DepartmentId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "DepartmentMaster",
+      "COLUMN_NAME": "DepartmentCode",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DepartmentMaster",
+      "COLUMN_NAME": "DepartmentName",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DepartmentMaster",
+      "COLUMN_NAME": "DisplayOrder",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DepartmentMaster",
+      "COLUMN_NAME": "IsActive",
+      "DATA_TYPE": "bit",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "TeamMaster": [
+    {
+      "TABLE_NAME": "TeamMaster",
+      "COLUMN_NAME": "TeamId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TeamMaster",
+      "COLUMN_NAME": "DepartmentId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TeamMaster",
+      "COLUMN_NAME": "TeamCode",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TeamMaster",
+      "COLUMN_NAME": "TeamName",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TeamMaster",
+      "COLUMN_NAME": "IsActive",
+      "DATA_TYPE": "bit",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "UserMaster": [
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "UserId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "EmployeeCode",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "FullName",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "Email",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "Mobile",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "RoleId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "HomeDepartmentId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "HomeTeamId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "PasswordHash",
+      "DATA_TYPE": "nvarchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "IsActive",
+      "DATA_TYPE": "bit",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "ReportingManagerId",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "JoiningDate",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "CreatedOn",
+      "DATA_TYPE": "datetime",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "CreatedBy",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "ModifiedOn",
+      "DATA_TYPE": "datetime",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "UserMaster",
+      "COLUMN_NAME": "ModifiedBy",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "TimeLog": [
+    {
+      "TABLE_NAME": "TimeLog",
+      "COLUMN_NAME": "TimeLogID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TimeLog",
+      "COLUMN_NAME": "TaskID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TimeLog",
+      "COLUMN_NAME": "UserID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TimeLog",
+      "COLUMN_NAME": "WorkDate",
+      "DATA_TYPE": "date",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TimeLog",
+      "COLUMN_NAME": "StartTime",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TimeLog",
+      "COLUMN_NAME": "EndTime",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TimeLog",
+      "COLUMN_NAME": "HoursWorked",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TimeLog",
+      "COLUMN_NAME": "Remarks",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TimeLog",
+      "COLUMN_NAME": "CreatedDate",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "TaskAssignment": [
+    {
+      "TABLE_NAME": "TaskAssignment",
+      "COLUMN_NAME": "AssignmentID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TaskAssignment",
+      "COLUMN_NAME": "TaskID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TaskAssignment",
+      "COLUMN_NAME": "UserID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "TABLE_NAME": "TaskAssignment",
+      "COLUMN_NAME": "AssignedBy",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskAssignment",
+      "COLUMN_NAME": "AssignedDate",
+      "DATA_TYPE": "datetime2",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskAssignment",
+      "COLUMN_NAME": "TargetHours",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskAssignment",
+      "COLUMN_NAME": "StatusID",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TaskAssignment",
+      "COLUMN_NAME": "Remarks",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES"
+    }
+  ]
+}

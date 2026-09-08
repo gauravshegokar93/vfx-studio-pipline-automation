@@ -1,86 +1,73 @@
-import axios from 'axios';
+import { apiClient as api } from './apiClient';
 
-// Helper: ensure we always log axios errors with request/response context
-function logAxiosError(prefix: string, err: any) {
-  console.error(`[${prefix}] axios error:`, {
-    message: err?.message,
-    code: err?.code,
-    status: err?.response?.status,
-    responseData: err?.response?.data,
-  });
+export interface ImportBatch {
+    ImportBatchID: number;
+    BatchNo: string;
+    BatchName: string;
+    ImportType: string;
+    TotalRecords: number;
+    SuccessRecords: number;
+    FailedRecords: number;
+    ImportStatus: string;
+    StartedOn: string;
 }
 
-import { API_BASE_URL } from '@/config/api';
-
-const previewUrl = `${API_BASE_URL}/import/bid-sheet/preview`;
-const commitUrl = `${API_BASE_URL}/import/bid-sheet/commit`;
-
+export interface ImportRow {
+    BatchRowID: number;
+    ImportBatchID: number;
+    RowNumber: number;
+    Project?: string;
+    Episode?: string;
+    ShotName?: string;
+    ClientShotName?: string;
+    Batch?: string;
+    Department?: string;
+    HeadIn?: number;
+    TailOut?: number;
+    FrameRange?: string;
+    SOW?: string;
+    Notes?: string;
+    Vendor?: string;
+    Complexity?: string;
+    RotoBid?: number;
+    PaintBid?: number;
+    CompBid?: number;
+    CGBid?: number;
+    TotalBid?: number;
+    ETA?: string;
+    Status?: string;
+    ThumbnailPath?: string;
+    ValidationStatus: 'VALID' | 'INVALID';
+    ValidationMessage?: string;
+}
 
 export const importService = {
-  simpleImport: async (file: File): Promise<any> => {
-    const form = new FormData();
-    form.append('file', file);
+    uploadExcel: async (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await api.post('/import/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
 
-    const url = `${API_BASE_URL}/simple-import`;
-    try {
-      const res = await axios.post(url, form);
-      return res.data;
-    } catch (err) {
-      logAxiosError('SimpleImport', err);
-      throw err;
+    getBatches: async (): Promise<ImportBatch[]> => {
+        const response = await api.get('/import/batches');
+        return response.data.data;
+    },
+
+    getBatchRows: async (batchId: number): Promise<ImportRow[]> => {
+        const response = await api.get(`/import/batches/${batchId}/rows`);
+        return response.data.data;
+    },
+
+    updateRow: async (rowId: number, updates: Partial<ImportRow>) => {
+        const response = await api.put(`/import/rows/${rowId}`, updates);
+        return response.data;
+    },
+
+    revalidateBatch: async (batchId: number) => {
+        const response = await api.post(`/import/batches/${batchId}/revalidate`);
+        return response.data.data;
     }
-  },
-  getImportedRows: async (): Promise<any> => {
-    const url = `${API_BASE_URL}/simple-import`;
-    try {
-      const res = await axios.get(url);
-      return res.data;
-    } catch (err) {
-      logAxiosError('GetImportedRows', err);
-      throw err;
-    }
-  },
-  previewBidSheet: async (file: File, token: string): Promise<any> => {
-    console.log('[importService] FormData created for preview:', { name: file?.name, size: file?.size });
-    const form = new FormData();
-    form.append('file', file);
-
-    console.log('[importService] API call (preview):', { url: previewUrl, authHeaderPresent: !!token });
-    try {
-      const res = await axios.post(previewUrl, form, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      console.log('[importService] Preview API response status:', res.status);
-      return res.data;
-    } catch (err) {
-      logAxiosError('Preview', err);
-      throw err;
-    }
-  },
-
-  commitBidSheet: async (file: File, token: string): Promise<any> => {
-    console.log('[importService] FormData created for commit:', { name: file?.name, size: file?.size });
-    const form = new FormData();
-    form.append('file', file);
-
-    console.log('[importService] API call (commit):', { url: commitUrl, authHeaderPresent: !!token });
-    try {
-      const res = await axios.post(commitUrl, form, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      console.log('[importService] Commit API response status:', res.status);
-      return res.data;
-    } catch (err) {
-      logAxiosError('Commit', err);
-      throw err;
-    }
-  },
 };
-
-
