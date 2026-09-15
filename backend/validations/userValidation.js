@@ -135,7 +135,16 @@ const searchUserSchema = Joi.object({
   departmentId: Joi.string()
     .allow('', null),
 
+  teamId: Joi.string()
+    .allow('', null),
+
+  roleId: Joi.string()
+    .allow('', null),
+
   role: Joi.string()
+    .allow('', null),
+
+  reportingManagerId: Joi.string()
     .allow('', null),
 
   status: Joi.string()

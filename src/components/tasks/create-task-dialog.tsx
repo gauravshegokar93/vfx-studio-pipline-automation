@@ -8,7 +8,8 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogTrigger,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,7 @@ import {
 import { useLuminaStore } from '@/lib/store';
 import { PipelineStep, Task, Priority } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
+import { taskService } from '@/services/taskService';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { AlertTriangle, Plus, CheckCircle, Info } from 'lucide-react';
@@ -77,39 +79,37 @@ export function CreateTaskDialog({ trigger }: CreateTaskDialogProps) {
     };
   }, [formData.assignedArtistId, users, tasks]);
 
-  const handleCreate = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCreate = async () => {
     if (!formData.shotId || !formData.taskName || formData.bidHours <= 0) {
       toast({ variant: 'destructive', title: 'Invalid Data', description: 'Please fill out all required fields.' });
       return;
     }
 
-    const newTask: Task = {
-      id: `task_${Date.now()}`,
-      shotId: formData.shotId,
-      pipelineStep: formData.pipelineStep,
+    setIsSubmitting(true);
+    const payload = {
+      shotId: Number(formData.shotId),
       taskName: formData.taskName,
-      assignedArtistId: formData.assignedArtistId,
-      leadId: formData.leadId,
-      supervisorId: currentUser?.id || 'sup1',
-      bidHours: formData.bidHours,
-      spentHours: 0,
-      remainingHours: formData.bidHours,
-      status: formData.assignedArtistId ? 'In Progress' : 'Not Started',
-      progress: 0,
-      internalEta: formData.dueDate,
-      reviewStatus: 'Pending',
-      startDate: new Date().toISOString().split('T')[0],
+      estimatedHours: formData.bidHours,
+      assignedArtistId: formData.assignedArtistId ? Number(formData.assignedArtistId) : null,
       dueDate: formData.dueDate,
-      priority: formData.priority,
-      reviewerId: formData.reviewerId
     };
 
-    addTask(newTask);
-    setOpen(false);
-    toast({
-      title: 'Task Created Successfully',
-      description: `Task "${formData.taskName}" for shot ${shots.find(s => s.id === formData.shotId)?.shotCode} is now live.`,
-    });
+    const res = await taskService.createTask(payload);
+    setIsSubmitting(false);
+
+    if (res.success) {
+      setOpen(false);
+      toast({
+        title: 'Task Created Successfully',
+        description: `Task "${formData.taskName}" for shot ${shots.find(s => String(s.id) === String(formData.shotId))?.shotCode} is now live.`,
+      });
+      // Trigger a sync event to refresh the UI with new DB data
+      window.dispatchEvent(new Event('sync-database'));
+    } else {
+      toast({ variant: 'destructive', title: 'Creation Failed', description: res.message });
+    }
   };
 
   return (
@@ -126,6 +126,9 @@ export function CreateTaskDialog({ trigger }: CreateTaskDialogProps) {
           <DialogTitle className="text-2xl font-headline flex items-center gap-2">
             <Plus className="text-crimson" /> Create Manual Production Task
           </DialogTitle>
+          <DialogDescription className="hidden">
+            Form to configure and assign a new manual production task.
+          </DialogDescription>
         </DialogHeader>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
@@ -272,9 +275,9 @@ export function CreateTaskDialog({ trigger }: CreateTaskDialogProps) {
 
                 <div className="space-y-3">
                   <div className="flex justify-between text-[10px]">
-                    <span className="text-muted-foreground">Assigned Bid: {selectedArtistStats.assignedBid}h / {selectedArtistStats.capacity}h</span>
+                    <span className="text-muted-foreground">Assigned Bid: {selectedArtistStats.assignedBid} / {selectedArtistStats.capacity}</span>
                     <span className={cn("font-bold", selectedArtistStats.isOverloaded ? "text-red-500" : "text-white")}>
-                      {selectedArtistStats.remaining > 0 ? `${selectedArtistStats.remaining}h Avail` : 'CAPACITY EXCEEDED'}
+                      {selectedArtistStats.remaining > 0 ? `${selectedArtistStats.remaining} Avail` : 'CAPACITY EXCEEDED'}
                     </span>
                   </div>
                   <Progress value={(selectedArtistStats.assignedBid / selectedArtistStats.capacity) * 100} className="h-1.5" />

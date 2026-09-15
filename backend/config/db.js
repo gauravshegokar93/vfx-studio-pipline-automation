@@ -11,6 +11,7 @@ const config = {
   database: process.env.DB_DATABASE,
   options: {
     trustServerCertificate: true,
+    useUTC: false,
   },
 };
 

@@ -32,26 +32,32 @@ app.use('/api/settings', require('./routes/settingsRoutes'));
 app.use('/api/sequences', require('./routes/sequencesRoutes'));
 app.use('/api/assignments', require('./routes/assignmentsRoutes'));
 app.use('/api/import', require('./routes/importRoutes'));
+app.use('/api/time-logs', require('./routes/timeLogRoutes'));
+app.use('/api/reviews', require('./routes/reviewRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 // const authRoutes = require("./modules/auth");
 // const userRoutes = require("./modules/master/user/user.routes");
 // app.use("/api/auth", authRoutes);
 // app.use("/api/users", userRoutes);
 const PORT = process.env.PORT || 5000;
 
-// Log all registered routes
-app.listen(PORT, () => {
-  console.log('Server running on ' + PORT);
-  console.log('\n=== Registered Routes ===');
-  app._router?.stack?.forEach((middleware) => {
-    if (middleware.route) {
-      console.log(middleware.route.methods.alls ? '' : Object.keys(middleware.route.methods).join(',').toUpperCase(), middleware.route.path);
-    } else if (middleware.name === 'router' && middleware.handle?.stack) {
-      middleware.handle.stack.forEach((handler) => {
-        if (handler.route) {
-          console.log(Object.keys(handler.route.methods).join(',').toUpperCase(), handler.route.path);
-        }
-      });
-    }
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log('Server running on ' + PORT);
+    console.log('\n=== Registered Routes ===');
+    app._router?.stack?.forEach((middleware) => {
+      if (middleware.route) {
+        console.log(middleware.route.methods.alls ? '' : Object.keys(middleware.route.methods).join(',').toUpperCase(), middleware.route.path);
+      } else if (middleware.name === 'router' && middleware.handle?.stack) {
+        middleware.handle.stack.forEach((handler) => {
+          if (handler.route) {
+            console.log(Object.keys(handler.route.methods).join(',').toUpperCase(), handler.route.path);
+          }
+        });
+      }
+    });
+    console.log('=========================\n');
   });
-  console.log('=========================\n');
-});
+}
+
+module.exports = app;

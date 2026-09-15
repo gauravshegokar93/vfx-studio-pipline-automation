@@ -5,8 +5,9 @@ exports.uploadExcel = async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ success: false, message: 'No file uploaded' });
         }
-        const userId = req.user.userId;
-        const result = await importService.processUpload(req.file, userId);
+        const userId = req.user ? req.user.userId : 1;
+        const projectId = req.body ? req.body.projectId : null;
+        const result = await importService.processUpload(req.file, userId, projectId);
         res.json({ success: true, data: result });
     } catch (err) {
         console.error('[ImportController] uploadExcel Error:', err);
@@ -31,6 +32,17 @@ exports.getBatchDetails = async (req, res) => {
         res.json({ success: true, data: result });
     } catch (err) {
         console.error('[ImportController] getBatchDetails Error:', err);
+        res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
+    }
+};
+
+exports.getBatchSummary = async (req, res) => {
+    try {
+        const { batchId } = req.params;
+        const result = await importService.getBatchSummary(batchId);
+        res.json({ success: true, data: result });
+    } catch (err) {
+        console.error('[ImportController] getBatchSummary Error:', err);
         res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
     }
 };
@@ -68,3 +80,30 @@ exports.revalidateBatch = async (req, res) => {
         res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
     }
 };
+
+exports.approveBatch = async (req, res) => {
+    try {
+        const { batchId } = req.params;
+        const userId = req.user ? req.user.userId : 1;
+        const result = await importService.approveBatch(batchId, userId);
+        res.json({ success: true, data: result });
+    } catch (err) {
+        console.error('[ImportController] approveBatch Error:', err);
+        res.status(400).json({ success: false, message: err.message || 'Failed to approve import batch' });
+    }
+};
+
+exports.createBatchTasks = async (req, res) => {
+    try {
+        const { batchId } = req.params;
+        const userId = req.user ? req.user.userId : 1;
+        const result = await importService.createBatchTasks(batchId, userId);
+        res.json({ success: true, data: result });
+    } catch (err) {
+        console.error('[ImportController] createBatchTasks Error:', err);
+        res.status(400).json({ success: false, message: err.message || 'Failed to create tasks for import batch' });
+    }
+};
+
+
+

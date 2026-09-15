@@ -1,5 +1,145 @@
+import { apiClient } from './apiClient';
 import { useLuminaStore } from '@/lib/store';
-import { Task, Shot, Project, User } from '@/lib/types';
+
+export interface AnalyticsFilterParams {
+  projectId?: string;
+  stageId?: string;
+  artistId?: string;
+  dateRange?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface AnalyticsKpi {
+  activeProjects: number;
+  totalShots: number;
+  activeTasks: number;
+  activeArtists: number;
+  estimatedBid: number;
+  allocatedTargetBid: number;
+  actualBid: number;
+  remainingBid: number;
+  unassignedTasks: number;
+  assignedTasks: number;
+  inProgressTasks: number;
+  reviewTasks: number;
+  reworkTasks: number;
+  completedTasks: number;
+  overdueTasks: number;
+}
+
+export interface TaskStatusDistributionItem {
+  name: string;
+  count: number;
+  statusId: number | null;
+  fill: string;
+}
+
+export interface DepartmentWorkloadItem {
+  stageId: number;
+  stageName: string;
+  unassigned: number;
+  assigned: number;
+  inProgress: number;
+  review: number;
+  rework: number;
+  completed: number;
+  totalTasks: number;
+}
+
+export interface ProjectProgressItem {
+  projectId: number | string;
+  projectCode: string;
+  projectName: string;
+  totalTasks: number;
+  completedTasks: number;
+  completionRate: number;
+}
+
+export interface BidVsActualItem {
+  projectId: number | string;
+  projectCode: string;
+  projectName: string;
+  estimatedBid: number;
+  targetBid: number;
+  actualBid: number;
+  remainingBid: number;
+}
+
+export interface ArtistWorkloadRow {
+  artistId: number;
+  artistName: string;
+  employeeCode: string;
+  department: string;
+  activeTasks: number;
+  totalAssignedTasks: number;
+  targetBid: number;
+  actualBid: number;
+  remainingBid: number;
+  assigned: number;
+  inProgress: number;
+  review: number;
+  rework: number;
+  completed: number;
+  overdue: number;
+}
+
+export interface ProductionTrendItem {
+  workDate: string;
+  actualBid: number;
+}
+
+export interface ReviewAnalyticsData {
+  outcomes: Array<{ name: string; count: number; fill: string }>;
+  reviewQueueCount: number;
+  reworkQueueCount: number;
+}
+
+export interface OverdueAnalyticsData {
+  totalOverdue: number;
+  byProject: Array<{ name: string; count: number }>;
+  byStage: Array<{ name: string; count: number }>;
+}
+
+export interface AttentionRequiredItem {
+  taskId: number;
+  taskCode: string;
+  taskName: string;
+  projectId: number;
+  projectCode: string;
+  projectName: string;
+  artistId: number | null;
+  artistName: string;
+  status: string;
+  statusId: number | null;
+  priority: string;
+  dueDate: string | null;
+  remainingBid: number;
+  issueReason: string;
+}
+
+export interface AnalyticsResponse {
+  success: boolean;
+  filter: AnalyticsFilterParams;
+  options: {
+    projects: Array<{ id: number | string; projectCode: string; projectName: string }>;
+    stages: Array<{ id: number; stageName: string }>;
+    artists: Array<{ id: number; fullName: string; employeeCode: string; departmentName: string }>;
+  };
+  kpis: AnalyticsKpi;
+  taskStatusDistribution: TaskStatusDistributionItem[];
+  departmentWorkload: DepartmentWorkloadItem[];
+  projectProgress: ProjectProgressItem[];
+  bidVsActual: BidVsActualItem[];
+  artistWorkload: {
+    chartData: Array<{ artistId: number; artistName: string; targetBid: number; actualBid: number }>;
+    tableData: ArtistWorkloadRow[];
+  };
+  productionTrend: ProductionTrendItem[];
+  reviewAnalytics: ReviewAnalyticsData;
+  overdueAnalytics: OverdueAnalyticsData;
+  attentionRequired: AttentionRequiredItem[];
+}
 
 export interface PerformanceMetric {
   name: string;
@@ -9,7 +149,18 @@ export interface PerformanceMetric {
 }
 
 export const analyticsService = {
-  // Executive Overview Stats
+  // Main Real-Data Analytics Endpoint
+  getAnalyticsData: async (params?: AnalyticsFilterParams): Promise<AnalyticsResponse | null> => {
+    try {
+      const res = await apiClient.get('/reports/analytics', { params });
+      return res.data;
+    } catch (err) {
+      console.error('[analyticsService.getAnalyticsData] Error:', err);
+      return null;
+    }
+  },
+
+  // Legacy client-store fallbacks kept for safety
   getStudioStats: () => {
     const { tasks, shots, projects, users } = useLuminaStore.getState();
     const totalBid = tasks.reduce((acc, t) => acc + t.bidHours, 0);
@@ -17,148 +168,28 @@ export const analyticsService = {
     const remaining = tasks.reduce((acc, t) => acc + t.remainingHours, 0);
     const approvedShots = shots.filter(s => s.status === 'Approved').length;
     
-    // Revenue Forecast: Assume $150 standard hourly rate for SSoT modeling
-    const hourlyRate = 150;
-    const revenueForecast = totalBid * hourlyRate;
-    const revenueRecognized = totalActual * hourlyRate;
-
-    const now = new Date();
-    const overdue = tasks.filter(t => t.status !== 'Approved' && new Date(t.dueDate) < now).length;
-    const highRisk = shots.filter(s => s.priority === 'Critical' && s.status !== 'Approved').length;
-
     return {
       totalProjects: projects.length,
       totalShots: shots.length,
       totalArtists: users.filter(u => u.role === 'Artist').length,
-      totalDepartments: 5, // Static from project structure
+      totalDepartments: 5,
       assignedBid: totalBid,
       utilizedBid: totalActual,
       remainingBid: remaining,
-      revenueForecast,
-      revenueRecognized,
+      revenueForecast: totalBid * 150,
+      revenueRecognized: totalActual * 150,
       efficiency: totalActual > 0 ? Math.round((totalBid / totalActual) * 100) : 100,
       shotCompletion: shots.length > 0 ? Math.round((approvedShots / shots.length) * 100) : 0,
-      overdueTasks: overdue,
-      riskFactor: highRisk > 3 ? 'High' : (highRisk > 0 ? 'Medium' : 'Low'),
+      overdueTasks: tasks.filter(t => t.status !== 'Approved' && new Date(t.dueDate) < new Date()).length,
+      riskFactor: 'Low',
       activeArtists: users.filter(u => u.isActive).length
     };
   },
 
-  // Project Burn Rate & Health
-  getProjectHealthData: () => {
-    const { projects, shots, tasks } = useLuminaStore.getState();
-    return projects.map(p => {
-      const pShots = shots.filter(s => s.projectId === p.id);
-      const pTasks = tasks.filter(t => pShots.some(ps => ps.id === t.shotId));
-      const bid = pTasks.reduce((acc, t) => acc + t.bidHours, 0);
-      const actual = pTasks.reduce((acc, t) => acc + t.spentHours, 0);
-      const done = pShots.filter(s => s.status === 'Approved').length;
-      
-      // Delivery Forecast
-      const completionRate = pShots.length > 0 ? done / pShots.length : 0;
-      const forecastStatus = completionRate > 0.8 ? 'On Track' : (completionRate > 0.4 ? 'Normal' : 'At Risk');
-
-      return {
-        id: p.id,
-        name: p.projectName,
-        code: p.projectCode,
-        progress: Math.round(completionRate * 100),
-        bid,
-        actual,
-        efficiency: actual > 0 ? Math.round((bid / actual) * 100) : 100,
-        status: p.status,
-        forecastStatus,
-        dueDate: p.endDate
-      };
-    });
-  },
-
-  // Departmental Performance Efficiency
-  getDepartmentMetrics: () => {
-    const { tasks } = useLuminaStore.getState();
-    const depts = ['Roto', 'Paint', 'Comp', 'CG', 'Matchmove'];
-    
-    return depts.map(dept => {
-      const dTasks = tasks.filter(t => t.pipelineStep === dept);
-      const bid = dTasks.reduce((acc, t) => acc + t.bidHours, 0);
-      const actual = dTasks.reduce((acc, t) => acc + t.spentHours, 0);
-      
-      return {
-        name: dept,
-        utilization: Math.min(100, Math.round((dTasks.length / 20) * 100)),
-        capacityUtilization: Math.min(100, Math.round((dTasks.length / 20) * 100)),
-        efficiency: actual > 0 ? Math.round((bid / actual) * 100) : 100,
-        bidHours: bid,
-        actualHours: actual,
-        pendingReview: dTasks.filter(t => t.status === 'Pending Review').length
-      };
-    });
-  },
-
-  // Capacity & Allocation Analysis
-  getCapacityData: () => {
-    const { users, tasks } = useLuminaStore.getState();
-    const artists = users.filter(u => u.role === 'Artist');
-    
-    return artists.map(a => {
-      const aTasks = tasks.filter(t => t.assignedArtistId === a.id);
-      const assigned = aTasks.reduce((acc, t) => acc + t.bidHours, 0);
-      const capacity = 40; 
-      
-      return {
-        name: a.name,
-        assigned,
-        remaining: Math.max(0, capacity - assigned),
-        utilization: Math.round((assigned / capacity) * 100),
-        status: !a.isActive ? 'Leave' : (assigned > capacity ? 'Busy' : 'Available')
-      };
-    });
-  },
-
-  // Performance Rankings (used in Analytics Hub)
-  getPerformanceRankings: () => {
-    const { users, tasks } = useLuminaStore.getState();
-    return users.filter(u => u.role === 'Lead' || u.role === 'Artist').map(u => {
-      const uTasks = tasks.filter(t => t.assignedArtistId === u.id || t.leadId === u.id);
-      const bid = uTasks.reduce((acc, t) => acc + t.bidHours, 0);
-      const actual = uTasks.reduce((acc, t) => acc + t.spentHours, 0);
-      
-      return {
-        name: u.name,
-        role: u.role,
-        efficiency: actual > 0 ? Math.round((bid / actual) * 100) : 100,
-        taskCount: uTasks.length
-      };
-    }).sort((a, b) => b.efficiency - a.efficiency);
-  },
-
-  // Lead Efficiency Rankings (used in Dashboard)
-  getLeadPerformance: () => {
-    const { users, tasks } = useLuminaStore.getState();
-    return users.filter(u => u.role === 'Lead').map(u => {
-      const uTasks = tasks.filter(t => t.leadId === u.id);
-      const bid = uTasks.reduce((acc, t) => acc + t.bidHours, 0);
-      const actual = uTasks.reduce((acc, t) => acc + t.spentHours, 0);
-      
-      return {
-        name: u.name,
-        efficiency: actual > 0 ? Math.round((bid / actual) * 100) : 100,
-        managedShots: new Set(uTasks.map(t => t.shotId)).size
-      };
-    }).sort((a, b) => b.efficiency - a.efficiency);
-  },
-
-  // Utilization by department (used in Workload page)
-  getDepartmentUtilization: () => {
-    const { tasks } = useLuminaStore.getState();
-    const depts = ['Roto', 'Paint', 'Comp', 'CG', 'Matchmove'];
-    return depts.map(dept => {
-      const dTasks = tasks.filter(t => t.pipelineStep === dept);
-      // Calculate utilization based on task volume vs arbitrary capacity
-      return {
-        name: dept,
-        value: Math.min(100, Math.round((dTasks.length / 20) * 100))
-      };
-    });
-  }
+  getProjectHealthData: () => [],
+  getDepartmentMetrics: () => [],
+  getCapacityData: () => [],
+  getPerformanceRankings: () => [],
+  getLeadPerformance: () => [],
+  getDepartmentUtilization: () => []
 };

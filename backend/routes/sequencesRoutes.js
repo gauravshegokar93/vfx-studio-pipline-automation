@@ -8,26 +8,24 @@ function secured(handler) {
   return authMiddleware(['Production Head', 'Department Supervisor', 'Lead', 'Artist'], handler);
 }
 
-// Minimal SQL-backed endpoints required for import.
-// Currently supports lookups for (ProjectId, SequenceCode) and listing sequences.
-
 async function listSequences(req, res) {
   const request = (await sql.connect(config)).request();
   const { projectId } = req.query || {};
 
   const where = [];
+  let fromClause = 'FROM SequenceMaster sq INNER JOIN ReelMaster r ON r.ReelId = sq.ReelId';
   if (projectId) {
-    request.input('ProjectId', sql.UniqueIdentifier, projectId);
-    where.push('s.ProjectId = @ProjectId');
+    request.input('ProjectId', sql.BigInt, projectId);
+    where.push('r.ProjectId = @ProjectId');
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const result = await request.query(`
-    SELECT s.SequenceId AS id, s.ProjectId AS projectId, s.SequenceCode AS sequenceCode
-    FROM Sequences s
+    SELECT sq.SequenceId AS id, r.ProjectId AS projectId, sq.ReelId AS reelId, sq.SequenceCode AS sequenceCode, sq.SequenceName AS sequenceName
+    ${fromClause}
     ${whereSql}
-    ORDER BY s.SequenceCode ASC;
+    ORDER BY sq.SequenceCode ASC;
   `);
 
   return res.json({ success: true, items: result.recordset || [] });
@@ -40,13 +38,14 @@ async function getSequenceByCode(req, res) {
   }
 
   const request = (await sql.connect(config)).request();
-  request.input('ProjectId', sql.UniqueIdentifier, projectId);
+  request.input('ProjectId', sql.BigInt, projectId);
   request.input('SequenceCode', sql.NVarChar, String(sequenceCode).trim());
 
   const result = await request.query(`
-    SELECT TOP 1 s.SequenceId AS id, s.ProjectId AS projectId, s.SequenceCode AS sequenceCode
-    FROM Sequences s
-    WHERE s.ProjectId = @ProjectId AND s.SequenceCode = @SequenceCode;
+    SELECT TOP 1 sq.SequenceId AS id, r.ProjectId AS projectId, sq.ReelId AS reelId, sq.SequenceCode AS sequenceCode, sq.SequenceName AS sequenceName
+    FROM SequenceMaster sq
+    INNER JOIN ReelMaster r ON r.ReelId = sq.ReelId
+    WHERE r.ProjectId = @ProjectId AND (sq.SequenceCode = @SequenceCode OR sq.SequenceName = @SequenceCode);
   `);
 
   const row = result.recordset?.[0] || null;
@@ -57,4 +56,5 @@ router.get('/', secured(listSequences));
 router.get('/lookup', secured(getSequenceByCode));
 
 module.exports = router;
+
 

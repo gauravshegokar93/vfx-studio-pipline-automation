@@ -84,17 +84,7 @@ async function login(req, res) {
           message: "User is inactive"
       });
   }
-    console.log("Entered Password:", password);
-    console.log("DB Hash:", user.PasswordHash);
-    console.log("Password Length:", password.length);
-console.log("Password JSON:", JSON.stringify(password));
-console.log("Hash Length:", user.PasswordHash.length);
-console.log("Hash from DB:", JSON.stringify(user.PasswordHash));
-console.log("Hash Length:", user.PasswordHash.length);
     const ok = await bcrypt.compare(String(password), user.PasswordHash);
-
-    console.log("Password Match:", ok);
-    console.log("Password Match:", ok);
 
 if (!ok) {
     return res.status(401).json({

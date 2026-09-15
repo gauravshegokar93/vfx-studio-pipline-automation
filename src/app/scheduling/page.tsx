@@ -92,7 +92,7 @@ export default function SchedulingPage() {
                           <div className="flex gap-2 mt-1">
                             <Badge variant="outline" className="text-[10px]">{task.pipelineStep}</Badge>
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> {task.bidHours}h
+                              <Clock className="w-3 h-3" /> {task.bidHours}
                             </span>
                           </div>
                         </div>

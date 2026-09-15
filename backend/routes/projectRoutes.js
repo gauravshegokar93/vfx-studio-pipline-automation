@@ -5,6 +5,7 @@ const router = express.Router();
 const {
   listProjects,
   getProject,
+  getProjectHierarchy,
   createProject,
   updateProject,
   deleteProject,
@@ -12,6 +13,7 @@ const {
 
 // Projects CRUD
 router.get('/', listProjects);
+router.get('/:id/hierarchy', getProjectHierarchy);
 router.get('/:id', getProject);
 router.post('/', createProject);
 router.put('/:id', updateProject);

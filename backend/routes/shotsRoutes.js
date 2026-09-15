@@ -14,19 +14,18 @@ async function listShots(req, res) {
 
   const where = [];
 
-  // If projectId provided, join sequences
   if (sequenceId) {
-    request.input('SequenceId', sql.UniqueIdentifier, sequenceId);
+    request.input('SequenceId', sql.BigInt, sequenceId);
     where.push('sh.SequenceId = @SequenceId');
   }
 
-  const fromClause = projectId
-    ? `FROM Shots sh INNER JOIN Sequences s ON s.SequenceId = sh.SequenceId`
-    : 'FROM Shots sh';
-
+  let fromClause = 'FROM ShotMaster sh';
   if (projectId) {
-    request.input('ProjectId', sql.UniqueIdentifier, projectId);
-    where.push('s.ProjectId = @ProjectId');
+    request.input('ProjectId', sql.BigInt, projectId);
+    fromClause = `FROM ShotMaster sh
+      INNER JOIN SequenceMaster sq ON sq.SequenceId = sh.SequenceId
+      INNER JOIN ReelMaster r ON r.ReelId = sq.ReelId`;
+    where.push('r.ProjectId = @ProjectId');
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -36,11 +35,13 @@ async function listShots(req, res) {
       sh.ShotId AS id,
       sh.SequenceId AS sequenceId,
       sh.ShotCode AS shotCode,
-      sh.Priority AS priority,
-      sh.Status AS status,
-      sh.DueDate AS dueDate,
-      sh.Description AS description
+      sh.FrameStart AS frameStart,
+      sh.FrameEnd AS frameEnd,
+      sh.Duration AS duration,
+      sh.ThumbnailPath AS thumbnailPath,
+      st.StatusName AS status
     ${fromClause}
+    LEFT JOIN StatusMaster st ON sh.StatusId = st.StatusId
     ${whereSql}
     ORDER BY sh.ShotCode ASC;
   `);
@@ -56,7 +57,7 @@ async function getShotByCode(req, res) {
   }
 
   const request = (await sql.connect(config)).request();
-  request.input('SequenceId', sql.UniqueIdentifier, sequenceId);
+  request.input('SequenceId', sql.BigInt, sequenceId);
   request.input('ShotCode', sql.NVarChar, String(shotCode).trim());
 
   const result = await request.query(`
@@ -64,11 +65,13 @@ async function getShotByCode(req, res) {
       sh.ShotId AS id,
       sh.SequenceId AS sequenceId,
       sh.ShotCode AS shotCode,
-      sh.Priority AS priority,
-      sh.Status AS status,
-      sh.DueDate AS dueDate,
-      sh.Description AS description
-    FROM Shots sh
+      sh.FrameStart AS frameStart,
+      sh.FrameEnd AS frameEnd,
+      sh.Duration AS duration,
+      sh.ThumbnailPath AS thumbnailPath,
+      st.StatusName AS status
+    FROM ShotMaster sh
+    LEFT JOIN StatusMaster st ON sh.StatusId = st.StatusId
     WHERE sh.SequenceId = @SequenceId AND sh.ShotCode = @ShotCode;
   `);
 
@@ -79,4 +82,5 @@ router.get('/', secured(listShots));
 router.get('/lookup', secured(getShotByCode));
 
 module.exports = router;
+
 

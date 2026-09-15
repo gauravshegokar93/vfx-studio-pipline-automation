@@ -49,13 +49,6 @@ interface LuminaState {
   }) => void;
   
   updateTaskTimer: (taskId: string, isRunning: boolean) => void;
-  assignTaskLead: (taskId: string, leadId: string) => Promise<void>;
-  assignTaskArtist: (taskId: string, artistId: string) => Promise<void>;
-  updateTaskStatus: (taskId: string, status: TaskStatus) => Promise<void>;
-  
-  artistUpdateProgress: (taskId: string, progress: number, comment: string, internalEta: string) => Promise<void>;
-  leadReviewTask: (taskId: string, status: ReviewStatus, comment: string) => Promise<void>;
-  supervisorApproveTask: (taskId: string, status: ReviewStatus, comment: string) => Promise<void>;
 }
 
 export const useLuminaStore = create<LuminaState>((set) => ({
@@ -225,103 +218,4 @@ export const useLuminaStore = create<LuminaState>((set) => ({
         : t
     )
   })),
-
-  assignTaskLead: async (taskId, leadId) => {
-    const task = useLuminaStore.getState().tasks.find(t => t.id === taskId);
-    const artistId = task ? task.assignedArtistId : null;
-    try {
-      await apiClient.put(`/tasks/${taskId}/assign`, { leadId, artistId });
-    } catch (e) {
-      console.error('[assignTaskLead] API Error:', e);
-    }
-    set((state) => ({
-      tasks: state.tasks.map(t => t.id === taskId ? { ...t, leadId, status: t.status === 'Not Started' ? 'Assigned' : t.status } : t)
-    }));
-  },
-
-  assignTaskArtist: async (taskId, artistId) => {
-    const task = useLuminaStore.getState().tasks.find(t => t.id === taskId);
-    const leadId = task ? task.leadId : null;
-    try {
-      await apiClient.put(`/tasks/${taskId}/assign`, { artistId, leadId });
-    } catch (e) {
-      console.error('[assignTaskArtist] API Error:', e);
-    }
-    set((state) => ({
-      tasks: state.tasks.map(t => t.id === taskId ? { ...t, assignedArtistId: artistId, status: t.status === 'Not Started' || t.status === 'Assigned' ? 'In Progress' : t.status } : t)
-    }));
-  },
-
-  updateTaskStatus: async (taskId, status) => {
-    try {
-      await apiClient.put(`/tasks/${taskId}/status`, { status });
-    } catch (e) {
-      console.error('[updateTaskStatus] API Error:', e);
-    }
-    set((state) => ({
-      tasks: state.tasks.map(t => t.id === taskId ? { ...t, status } : t)
-    }));
-  },
-
-  artistUpdateProgress: async (taskId, progress, comment, internalEta) => {
-    try {
-      await apiClient.put(`/tasks/${taskId}/progress`, { progress, comment, internalEta });
-    } catch (e) {
-      console.error('[artistUpdateProgress] API Error:', e);
-    }
-    set((state) => ({
-      tasks: state.tasks.map(t => 
-        t.id === taskId 
-          ? { 
-              ...t, 
-              progress, 
-              latestArtistComment: comment, 
-              internalEta, 
-              reviewStatus: 'Pending',
-              status: progress === 100 ? 'Pending Review' : 'In Progress' 
-            } 
-          : t
-      )
-    }));
-  },
-
-  leadReviewTask: async (taskId, status, comment) => {
-    try {
-      await apiClient.put(`/tasks/${taskId}/review`, { role: 'Lead', status, comment });
-    } catch (e) {
-      console.error('[leadReviewTask] API Error:', e);
-    }
-    set((state) => ({
-      tasks: state.tasks.map(t => 
-        t.id === taskId 
-          ? { 
-              ...t, 
-              reviewStatus: status, 
-              latestLeadComment: comment,
-              status: status === 'Approved' ? 'Pending Review' : (status === 'Changes Requested' ? 'Retake' : t.status)
-            } 
-          : t
-      )
-    }));
-  },
-
-  supervisorApproveTask: async (taskId, status, comment) => {
-    try {
-      await apiClient.put(`/tasks/${taskId}/review`, { role: 'Department Supervisor', status, comment });
-    } catch (e) {
-      console.error('[supervisorApproveTask] API Error:', e);
-    }
-    set((state) => ({
-      tasks: state.tasks.map(t => 
-        t.id === taskId 
-          ? { 
-              ...t, 
-              reviewStatus: status, 
-              latestSupComment: comment,
-              status: status === 'Approved' ? 'Approved' : (status === 'Changes Requested' ? 'Retake' : t.status)
-            } 
-          : t
-      )
-    }));
-  },
 }));

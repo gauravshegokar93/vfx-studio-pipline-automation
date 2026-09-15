@@ -28,10 +28,12 @@ async function getDepartments(req, res) {
   }
 }
 
-// bind auth to all handlers
-const secured = (handler) => authMiddleware(['Production Head', 'Department Supervisor', 'Lead', 'Artist'], handler);
+// bind auth to all handlers — everyone who needs to see department dropdowns
+const secured = (handler) => authMiddleware(
+  ['Super Admin', 'Production Head', 'Project Manager', 'Team Lead', 'Artist', 'QC Artist'],
+  handler
+);
 
 module.exports = {
   getDepartments: secured(getDepartments),
 };
-
