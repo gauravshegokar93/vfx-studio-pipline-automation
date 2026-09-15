@@ -28,6 +28,7 @@ export default function UnifiedDashboard() {
   // Route users to their specific primary dashboard experience
   switch (role) {
     case 'Super Admin':
+    case 'Admin':
     case 'Production Head':
       return <ProductionHeadDashboard />;
     case 'Project Manager':

@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 export default function ProductionQueuePage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -94,8 +94,8 @@ export default function ProductionQueuePage() {
                           "bg-sidebar-accent text-muted-foreground"
                         )}>{task.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-white">{task.bidHours}h</TableCell>
-                      <TableCell className="text-white">{task.spentHours}h</TableCell>
+                      <TableCell className="text-white">{task.bidHours}</TableCell>
+                      <TableCell className="text-white">{task.spentHours}</TableCell>
                       <TableCell>
                         <span className={cn(
                           "font-bold",

@@ -1,236 +1,396 @@
-
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { 
-  Briefcase,
-  TrendingUp,
-  Users,
+  BarChart3,
   Film,
   Layers,
-  Clock,
-  Target,
-  BarChart3,
-  DollarSign,
+  CheckSquare,
+  TrendingUp,
   AlertCircle,
-  Calendar,
+  Clock,
+  Filter,
+  Calendar as CalendarIcon,
+  HelpCircle,
+  UserX,
+  FileCheck,
+  AlertTriangle,
+  Ban,
+  Users,
+  Briefcase,
   ChevronRight,
-  ShieldCheck,
-  Zap
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { useLuminaStore } from '@/lib/store';
-import { analyticsService } from '@/services/analyticsService';
-import Link from 'next/link';
-import { cn } from '@/lib/utils';
+import { dashboardService, DashboardResponse } from '@/services/dashboardService';
+import { taskService, OverdueTaskItem } from '@/services/taskService';
 
 export default function ProductionHeadDashboard() {
-  const { projects, shots, tasks } = useLuminaStore();
-  
-  // Aggregate Executive Data
-  const stats = useMemo(() => analyticsService.getStudioStats(), [tasks, shots, projects]);
-  const projectHealth = useMemo(() => analyticsService.getProjectHealthData(), [projects, shots, tasks]);
-  const deptMetrics = useMemo(() => analyticsService.getDepartmentMetrics(), [tasks]);
-  const leadMetrics = useMemo(() => analyticsService.getLeadPerformance(), [tasks]);
+  const [projectId, setProjectId] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
-  const hasData = projects.length > 0;
+  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [overdueTasks, setOverdueTasks] = useState<OverdueTaskItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const bidData = [
-    { name: 'Consumed', value: stats.utilizedBid, fill: '#E6192E' },
-    { name: 'Remaining', value: stats.remainingBid, fill: '#333' }
-  ];
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [res, overdueRes] = await Promise.all([
+        dashboardService.getExecutiveDashboard({
+          projectId,
+          dateRange,
+          startDate: dateRange === 'custom' ? startDate : undefined,
+          endDate: dateRange === 'custom' ? endDate : undefined
+        }),
+        taskService.getOverdueTasks({
+          projectId: projectId !== 'all' ? projectId : undefined
+        })
+      ]);
+      setData(res);
+      setOverdueTasks(overdueRes);
+    } catch (err: any) {
+      console.error('[ProductionHeadDashboard] Error fetching dashboard data:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, dateRange, startDate, endDate]);
+
+  useEffect(() => {
+    if (dateRange === 'custom' && (!startDate || !endDate)) {
+      return;
+    }
+    fetchDashboardData();
+  }, [fetchDashboardData, dateRange, startDate, endDate]);
+
+  const formattedBid = (val?: number) => {
+    if (val === undefined || val === null) return '0.00 Bid';
+    return `${val.toFixed(2)} Bid`;
+  };
 
   return (
     <DashboardLayout>
-      <div className="p-8 space-y-8 pb-20">
-          <div className="flex justify-between items-end">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <BarChart3 className="text-crimson w-5 h-5" />
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Studio Intelligence Hub</span>
-              </div>
-              <h1 className="text-4xl font-headline text-white mb-2">Executive Overview</h1>
-              <p className="text-muted-foreground">Studio performance and capacity throughput across the pipeline.</p>
+      <div className="p-8 space-y-8 pb-20 select-none">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <BarChart3 className="text-crimson w-5 h-5" />
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                PRODUCTION CONTROL CENTER
+              </span>
             </div>
-            {!hasData && (
-              <Button className="bg-crimson shadow-lg shadow-crimson/20 font-bold h-12 px-8" asChild>
-                <Link href="/import">Initialize Studio SSoT</Link>
-              </Button>
-            )}
+            <h1 className="text-4xl font-headline text-white mb-2">Production Head Dashboard</h1>
+            <p className="text-muted-foreground">Operational pipeline status, department throughput, and Bid control.</p>
           </div>
 
-          {!hasData ? (
-             <div className="flex flex-col items-center justify-center py-40 border-2 border-dashed border-sidebar-border rounded-3xl bg-sidebar/5">
-                <AlertCircle className="w-12 h-12 text-muted-foreground mb-6 opacity-20" />
-                <h3 className="text-3xl font-bold text-white mb-3">No Studio Data</h3>
-                <p className="text-muted-foreground mb-10 text-center max-w-lg leading-relaxed">
-                  Your executive environment is ready but currently empty. Bootstrap your studio pipeline by importing the client's Bid Sheet.
+          {/* Filters Bar */}
+          <div className="flex flex-wrap items-center gap-3 bg-sidebar-accent/40 p-3 rounded-xl border border-sidebar-border/60">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-crimson shrink-0" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase">Project:</span>
+              <select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                className="bg-sidebar border border-sidebar-border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-crimson font-medium"
+              >
+                <option value="all">All Projects</option>
+                {data?.projectsList.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.projectName} ({p.projectCode})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="w-4 h-4 text-crimson shrink-0" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase">Date:</span>
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className="bg-sidebar border border-sidebar-border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-crimson font-medium"
+              >
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="this_week">This Week</option>
+                <option value="this_month">This Month</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+
+            {dateRange === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-sidebar border border-sidebar-border rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-crimson"
+                />
+                <span className="text-xs text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-sidebar border border-sidebar-border rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-crimson"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Loading State */}
+        {loading && !data && (
+          <div className="flex flex-col items-center justify-center py-24">
+            <div className="w-8 h-8 border-2 border-crimson border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-sm text-muted-foreground">Fetching live SQL database production metrics...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="p-6 bg-red-950/30 border border-red-800/50 rounded-2xl flex items-center gap-4 text-red-200">
+            <AlertCircle className="w-6 h-6 shrink-0 text-crimson" />
+            <div>
+              <p className="font-bold text-sm">Failed to query production database</p>
+              <p className="text-xs text-red-300/80">{error}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchDashboardData} className="ml-auto text-xs border-red-800 text-white">
+              Retry Query
+            </Button>
+          </div>
+        )}
+
+        {/* Executive & Production Head Content */}
+        {data && (
+          <>
+            {/* KPI Cards: Project & Task Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card className="bg-card border-none p-6 shadow-xl">
+                <div className="flex justify-between items-start mb-4">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">ACTIVE PROJECTS</p>
+                  <Film className="w-5 h-5 text-crimson" />
+                </div>
+                <h3 className="text-4xl font-headline text-white">{data.kpi.activeProjects}</h3>
+                <p className="text-[10px] text-muted-foreground mt-2 uppercase font-semibold">
+                  {data.kpi.totalShots} Linked Shots Across Pipeline
                 </p>
-                <Button className="bg-crimson h-16 px-12 rounded-2xl text-xl font-bold shadow-xl shadow-crimson/30" asChild>
-                  <Link href="/import">Import Client Bid Sheet</Link>
-                </Button>
-             </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card className="bg-card border-none p-6 shadow-xl group hover:ring-1 hover:ring-crimson transition-all">
-                  <div className="flex justify-between items-start mb-4">
-                    <p className="text-xs font-bold text-muted-foreground uppercase">Revenue Forecast</p>
-                    <DollarSign className="w-4 h-4 text-green-500" />
-                  </div>
-                  <h3 className="text-3xl font-headline text-white">${(stats.revenueForecast / 1000).toFixed(1)}k</h3>
-                  <div className="mt-4 flex flex-col gap-1">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Earned Revenue</p>
-                    <p className="text-sm font-bold text-green-500">${(stats.revenueRecognized / 1000).toFixed(1)}k</p>
-                  </div>
-                </Card>
+              </Card>
 
-                <Card className="bg-card border-none p-6 shadow-xl group hover:ring-1 hover:ring-crimson transition-all">
-                  <div className="flex justify-between items-start mb-4">
-                    <p className="text-xs font-bold text-muted-foreground uppercase">Studio Capacity</p>
-                    <Zap className="w-4 h-4 text-yellow-500" />
-                  </div>
-                  <h3 className="text-3xl font-headline text-white">{stats.efficiency}%</h3>
-                  <div className="mt-4 flex flex-col gap-1">
-                    <Progress value={stats.efficiency} className="h-1 bg-sidebar-accent" />
-                    <p className="text-[10px] text-muted-foreground mt-1 uppercase">Utilization Index</p>
-                  </div>
-                </Card>
+              <Card className="bg-card border-none p-6 shadow-xl">
+                <div className="flex justify-between items-start mb-4">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">TOTAL ESTIMATED BID</p>
+                  <Clock className="w-5 h-5 text-yellow-400" />
+                </div>
+                <h3 className="text-3xl font-headline text-white">{formattedBid(data.kpi.totalEstimatedBid)}</h3>
+                <p className="text-[10px] text-muted-foreground mt-2 uppercase font-semibold">Target Bid: {formattedBid(data.kpi.totalTargetBid)}</p>
+              </Card>
 
-                <Card className="bg-card border-none p-6 shadow-xl group hover:ring-1 hover:ring-crimson transition-all">
-                  <div className="flex justify-between items-start mb-4">
-                    <p className="text-xs font-bold text-muted-foreground uppercase">Active Hierarchy</p>
-                    <Film className="w-4 h-4 text-crimson" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <h4 className="text-2xl font-headline text-white">{stats.totalProjects}</h4>
-                      <p className="text-[8px] text-muted-foreground uppercase font-bold">Projects</p>
-                    </div>
-                    <div>
-                      <h4 className="text-2xl font-headline text-white">{stats.totalShots}</h4>
-                      <p className="text-[8px] text-muted-foreground uppercase font-bold">Shots</p>
-                    </div>
-                  </div>
-                </Card>
+              <Card className="bg-card border-none p-6 shadow-xl">
+                <div className="flex justify-between items-start mb-4">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">ACTUAL WORKED BID</p>
+                  <CheckSquare className="w-5 h-5 text-emerald-400" />
+                </div>
+                <h3 className="text-3xl font-headline text-emerald-400">{formattedBid(data.kpi.totalActualBid)}</h3>
+                <p className="text-[10px] text-muted-foreground mt-2 uppercase font-semibold">Logged Execution (TimeLog)</p>
+              </Card>
 
-                <Card className="bg-card border-none p-6 shadow-xl group hover:ring-1 hover:ring-crimson transition-all">
-                  <div className="flex justify-between items-start mb-4">
-                    <p className="text-xs font-bold text-muted-foreground uppercase">Risk Rating</p>
-                    <AlertCircle className={cn("w-4 h-4", stats.riskFactor === 'High' ? "text-red-500" : "text-yellow-500")} />
-                  </div>
-                  <h3 className={cn("text-3xl font-headline", stats.riskFactor === 'High' ? "text-red-500" : "text-white")}>
-                    {stats.riskFactor}
-                  </h3>
-                  <div className="mt-4 flex items-center gap-2">
-                    <Badge variant="outline" className="text-[8px] uppercase">{stats.overdueTasks} Overdue Tasks</Badge>
-                  </div>
-                </Card>
+              <Card className="bg-card border-none p-6 shadow-xl">
+                <div className="flex justify-between items-start mb-4">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">OVERALL COMPLETION</p>
+                  <TrendingUp className="w-5 h-5 text-amber-400" />
+                </div>
+                <h3 className="text-4xl font-headline text-white">{data.kpi.overallCompletion}%</h3>
+                <div className="mt-3">
+                  <Progress value={data.kpi.overallCompletion} className="h-1.5 bg-sidebar-accent" />
+                </div>
+              </Card>
+            </div>
+
+            {/* Attention Required & Operational Queues Banner */}
+            <Card className="bg-card border-none shadow-2xl p-6">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-sidebar-border">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-base font-bold text-white uppercase tracking-wider font-headline">PRODUCTION CONTROL WATCHDOG</h3>
+                </div>
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold">
+                  Real DB Operational Queues & Exceptions
+                </span>
               </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <Card className="bg-card border-none shadow-2xl">
-                  <CardHeader>
-                    <CardTitle className="text-white font-headline">Bid Volume Consumption</CardTitle>
-                    <CardDescription>Studio-wide total bid vs actual hours tracked.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="h-[300px] flex flex-col items-center justify-center relative">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={bidData}
-                          innerRadius={60}
-                          outerRadius={80}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          {bidData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ backgroundColor: '#111', border: 'none', color: '#fff' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <p className="text-2xl font-headline text-white">{stats.utilizedBid}h</p>
-                      <p className="text-[8px] text-muted-foreground uppercase font-bold">Consumed</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Link href="/department-queue" className="group">
+                  <div className="p-4 rounded-xl bg-sidebar-accent/30 border border-sidebar-border group-hover:border-amber-400/50 flex items-center gap-4 transition-colors">
+                    <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <UserX className="w-5 h-5 text-amber-400" />
                     </div>
-                  </CardContent>
-                </Card>
+                    <div>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase block">Unassigned Tasks</span>
+                      <span className="text-2xl font-bold text-white font-mono">{data.attentionRequired.unassignedTasks}</span>
+                    </div>
+                  </div>
+                </Link>
 
-                <Card className="bg-card border-none shadow-2xl lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle className="text-white font-headline">Pipeline Unit Efficiency</CardTitle>
-                    <CardDescription>Performance ratio and capacity utilization per department.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={deptMetrics}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
-                        <XAxis dataKey="name" stroke="#666" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#666" fontSize={12} tickLine={false} axisLine={false} unit="%" />
-                        <Tooltip contentStyle={{ backgroundColor: '#111', border: 'none', color: '#fff' }} />
-                        <Bar dataKey="efficiency" name="Efficiency" radius={[4, 4, 0, 0]} fill="#E6192E" />
-                        <Bar dataKey="capacityUtilization" name="Capacity Used" radius={[4, 4, 0, 0]} fill="#333" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </div>
+                <Link href="/reviews" className="group">
+                  <div className="p-4 rounded-xl bg-sidebar-accent/30 border border-sidebar-border group-hover:border-blue-400/50 flex items-center gap-4 transition-colors">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                      <FileCheck className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase block">Waiting for Review</span>
+                      <span className="text-2xl font-bold text-white font-mono">{data.attentionRequired.pendingReviews}</span>
+                    </div>
+                  </div>
+                </Link>
 
-              <Card className="bg-card border-none shadow-2xl overflow-hidden">
-                <CardHeader className="flex flex-row items-center justify-between bg-sidebar-accent/20 border-b border-sidebar-border">
+                <Link href="/department-queue" className="group">
+                  <div className="p-4 rounded-xl bg-sidebar-accent/30 border border-sidebar-border group-hover:border-purple-400/50 flex items-center gap-4 transition-colors">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                      <Ban className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase block">In Rework Status</span>
+                      <span className="text-2xl font-bold text-white font-mono">{data.attentionRequired.blockedTasks}</span>
+                    </div>
+                  </div>
+                </Link>
+
+                <div className="p-4 rounded-xl bg-sidebar-accent/30 border border-sidebar-border flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                  </div>
                   <div>
-                    <CardTitle className="text-white font-headline">Executive Project Health Matrix</CardTitle>
-                    <CardDescription>Live burn rate and delivery forecasting for current slate.</CardDescription>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase block">Overdue Tasks</span>
+                    <span className="text-2xl font-bold text-red-400 font-mono">{data.attentionRequired.overdueTasks}</span>
                   </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Project Production Matrix Table */}
+            <Card className="bg-card border-none shadow-2xl overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between bg-sidebar-accent/20 border-b border-sidebar-border py-4">
+                <div>
+                  <CardTitle className="text-white text-base font-bold uppercase tracking-wider font-headline">PROJECT PRODUCTION CONTROL</CardTitle>
+                  <CardDescription className="text-xs">Live shot, task, and Bid allocation breakdown per project.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left font-mono">
+                    <thead className="bg-sidebar-accent/50 text-[11px] uppercase font-bold text-muted-foreground border-b border-sidebar-border font-sans">
+                      <tr>
+                        <th className="px-6 py-3.5">Project</th>
+                        <th className="px-6 py-3.5 text-center">Shots</th>
+                        <th className="px-6 py-3.5 text-center">Tasks</th>
+                        <th className="px-6 py-3.5 text-center">Unassigned</th>
+                        <th className="px-6 py-3.5 text-center">Assigned</th>
+                        <th className="px-6 py-3.5 text-center">In Progress</th>
+                        <th className="px-6 py-3.5 text-center">Review</th>
+                        <th className="px-6 py-3.5 text-center">Rework</th>
+                        <th className="px-6 py-3.5 text-center">Completed</th>
+                        <th className="px-6 py-3.5 text-right">Target Bid</th>
+                        <th className="px-6 py-3.5 text-right">Actual Bid</th>
+                        <th className="px-6 py-3.5 text-right">Remaining Bid</th>
+                        <th className="px-6 py-3.5 w-36 text-right">Progress</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-sidebar-border/60 text-xs">
+                      {data.projectProduction.length === 0 ? (
+                        <tr>
+                          <td colSpan={13} className="px-6 py-8 text-center text-muted-foreground font-sans">
+                            No projects match the selected filter criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        data.projectProduction.map((p) => (
+                          <tr key={p.id} className="hover:bg-sidebar-accent/20 transition-colors">
+                            <td className="px-6 py-4 font-bold text-white font-sans">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-white">{p.projectName}</span>
+                                <span className="text-[10px] text-muted-foreground">{p.projectCode}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-center text-white">{p.shots}</td>
+                            <td className="px-6 py-4 text-center text-white">{p.tasks}</td>
+                            <td className="px-6 py-4 text-center text-amber-400">{p.unassigned || 0}</td>
+                            <td className="px-6 py-4 text-center text-blue-400">{p.assigned || 0}</td>
+                            <td className="px-6 py-4 text-center text-blue-500">{p.inProgress || 0}</td>
+                            <td className="px-6 py-4 text-center text-amber-300">{p.pendingReview}</td>
+                            <td className="px-6 py-4 text-center text-purple-400">{p.rework || 0}</td>
+                            <td className="px-6 py-4 text-center text-emerald-400 font-bold">{p.completed}</td>
+                            <td className="px-6 py-4 text-right text-yellow-400 font-bold">{formattedBid(p.targetBid)}</td>
+                            <td className="px-6 py-4 text-right text-emerald-400 font-bold">{formattedBid(p.actualBid)}</td>
+                            <td className="px-6 py-4 text-right text-crimson font-bold">{formattedBid(p.remainingBid)}</td>
+                            <td className="px-6 py-4 text-right font-sans">
+                              <div className="flex items-center justify-end gap-2">
+                                <Progress value={p.completionRate} className="h-1.5 w-16 bg-sidebar-accent" />
+                                <span className="text-[11px] font-semibold text-white">{p.completionRate}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Department Status & Overdue Tasks Breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Department Status Table */}
+              <Card className="bg-card border-none shadow-2xl overflow-hidden lg:col-span-2">
+                <CardHeader className="flex flex-row items-center justify-between bg-sidebar-accent/20 border-b border-sidebar-border py-4">
+                  <div>
+                    <CardTitle className="text-white text-base font-bold uppercase tracking-wider font-headline">DEPARTMENT PRODUCTION MATRIX</CardTitle>
+                    <CardDescription className="text-xs">Task queue distribution and Bid metrics for Roto, Paint, Comp, and CG.</CardDescription>
+                  </div>
+                  <Button size="sm" variant="outline" className="text-xs border-sidebar-border" asChild>
+                    <Link href="/department-progress">
+                      Full Operations View <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                    </Link>
+                  </Button>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="bg-sidebar-accent/50 text-[10px] uppercase font-bold text-muted-foreground border-b border-sidebar-border">
+                    <table className="w-full text-left font-mono">
+                      <thead className="bg-sidebar-accent/50 text-[11px] uppercase font-bold text-muted-foreground border-b border-sidebar-border font-sans">
                         <tr>
-                          <th className="px-6 py-4">Production Name</th>
-                          <th className="px-6 py-4">Slate Progress</th>
-                          <th className="px-6 py-4">Bid vs Actual</th>
-                          <th className="px-6 py-4">Efficiency</th>
-                          <th className="px-6 py-4">Forecast</th>
+                          <th className="px-6 py-3.5">Department</th>
+                          <th className="px-6 py-3.5 text-center">Total</th>
+                          <th className="px-6 py-3.5 text-center">Unassigned</th>
+                          <th className="px-6 py-3.5 text-center">WIP</th>
+                          <th className="px-6 py-3.5 text-center">Review</th>
+                          <th className="px-6 py-3.5 text-center">Rework</th>
+                          <th className="px-6 py-3.5 text-center">Completed</th>
+                          <th className="px-6 py-3.5 text-right">Target Bid</th>
+                          <th className="px-6 py-3.5 text-right">Actual Bid</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-sidebar-border">
-                        {projectHealth.map(proj => (
-                          <tr key={proj.id} className="hover:bg-sidebar-accent/10 transition-colors">
-                            <td className="px-6 py-6 font-bold text-white">{proj.name}</td>
-                            <td className="px-6 py-6 w-64">
-                              <Progress value={proj.progress} className="h-1 bg-sidebar-accent" />
-                            </td>
-                            <td className="px-6 py-6 text-sm text-white">{proj.actual}h / {proj.bid}h</td>
-                            <td className="px-6 py-6">
-                              <Badge className={proj.efficiency >= 100 ? "text-green-500" : "text-yellow-500"}>
-                                {proj.efficiency}%
-                              </Badge>
-                            </td>
-                            <td className="px-6 py-6">
-                              <Badge variant="outline" className={proj.forecastStatus === 'On Track' ? "text-green-500" : "text-yellow-500"}>
-                                {proj.forecastStatus}
-                              </Badge>
-                            </td>
+                      <tbody className="divide-y divide-sidebar-border/60 text-xs">
+                        {data.departmentStatus.map((dept) => (
+                          <tr key={dept.department} className="hover:bg-sidebar-accent/20 transition-colors">
+                            <td className="px-6 py-4 font-bold text-white font-sans text-sm">{dept.department}</td>
+                            <td className="px-6 py-4 text-center text-white">{dept.totalTasks}</td>
+                            <td className="px-6 py-4 text-center text-amber-400">{dept.unassigned || 0}</td>
+                            <td className="px-6 py-4 text-center text-blue-400">{dept.wip}</td>
+                            <td className="px-6 py-4 text-center text-amber-300">{dept.pendingReview}</td>
+                            <td className="px-6 py-4 text-center text-purple-400">{dept.rework || 0}</td>
+                            <td className="px-6 py-4 text-center text-emerald-400 font-bold">{dept.completed}</td>
+                            <td className="px-6 py-4 text-right text-yellow-400 font-bold">{formattedBid(dept.targetBid)}</td>
+                            <td className="px-6 py-4 text-right text-emerald-400 font-bold">{formattedBid(dept.actualBid)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -238,9 +398,61 @@ export default function ProductionHeadDashboard() {
                   </div>
                 </CardContent>
               </Card>
-            </>
-          )}
-        </div>
+
+              {/* Overdue Tasks Control List */}
+              <Card className="bg-card border-none shadow-2xl p-6 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                    <h3 className="text-base font-bold text-white uppercase tracking-wider font-headline">OVERDUE TASKS WATCHLIST</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Active tasks past due date requiring immediate attention.
+                  </p>
+
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                    {overdueTasks.map((task) => (
+                      <div 
+                        key={task.taskId} 
+                        className="p-3 bg-sidebar-accent/30 rounded-xl border border-red-500/30 space-y-1.5 hover:border-red-500/60 transition-colors cursor-pointer"
+                        onClick={() => window.location.href = `/tasks/${task.taskId}`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-xs font-bold text-white font-mono">{task.taskCode}</p>
+                            <p className="text-[10px] text-muted-foreground">{task.shotCode} ({task.stageName})</p>
+                          </div>
+                          <Badge className="bg-red-500/20 text-red-400 text-[9px] uppercase">
+                            Due {new Date(task.dueDate).toISOString().split('T')[0]}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-1 border-t border-sidebar-border/40 font-mono">
+                          <span>Artist: {task.assignedArtist || 'Unassigned'}</span>
+                          <span className="text-crimson font-bold">{formattedBid(task.targetBid || task.estimatedBid)}</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {overdueTasks.length === 0 && (
+                      <div className="p-8 text-center text-muted-foreground text-xs italic">
+                        <CheckCircle2 className="w-8 h-8 text-green-500/30 mx-auto mb-2" />
+                        No overdue tasks in pipeline.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-sidebar-border text-[10px] text-muted-foreground flex items-center justify-between">
+                  <span>Strict DB Rule: Completed tasks excluded</span>
+                  <Link href="/department-queue" className="text-crimson font-bold hover:underline">
+                    View Queue
+                  </Link>
+                </div>
+              </Card>
+            </div>
+          </>
+        )}
+      </div>
     </DashboardLayout>
   );
 }

@@ -3,9 +3,10 @@ const authMiddleware = require('../middleware/authMiddleware');
 const {
   getProjects,
   getProjectById,
+  getProjectHierarchy,
   createProject,
   updateProject,
-  softOrHardDeleteProject,
+  permanentlyDeleteProject,
 } = require('../services/projectsService');
 
 const secured = (handler) => authMiddleware(['Production Head', 'Department Supervisor', 'Lead', 'Artist'], handler);
@@ -57,10 +58,24 @@ async function getProject(req, res) {
   }
 }
 
+async function getProjectHierarchyController(req, res) {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ success: false, message: 'Project id is required' });
+
+  try {
+    const data = await getProjectHierarchy(id);
+    if (!data) return res.status(404).json({ success: false, message: 'Project not found' });
+    return res.json({ success: true, ...data });
+  } catch (e) {
+    console.error('[getProjectHierarchy] Error:', e);
+    return res.status(500).json({ success: false, message: 'Failed to get project hierarchy', error: e.message });
+  }
+}
+
 async function createProjectHandler(req, res) {
-  // RBAC: allow Production Head and Department Supervisor
-  const { role } = req.user || {};
-  if (!['Production Head', 'Department Supervisor'].includes(role)) {
+  // RBAC: allow Production Head, Department Supervisor, Super Admin, Admin
+  const role = req.user?.roleName || req.user?.role;
+  if (!['Production Head', 'Department Supervisor', 'Super Admin', 'Admin'].includes(role)) {
     return res.status(403).json({ success: false, message: 'Forbidden' });
   }
 
@@ -88,8 +103,8 @@ async function createProjectHandler(req, res) {
 }
 
 async function updateProjectHandler(req, res) {
-  const { role } = req.user || {};
-  if (!['Production Head', 'Department Supervisor'].includes(role)) {
+  const role = req.user?.roleName || req.user?.role;
+  if (!['Production Head', 'Department Supervisor', 'Super Admin', 'Admin'].includes(role)) {
     return res.status(403).json({ success: false, message: 'Forbidden' });
   }
 
@@ -119,29 +134,40 @@ async function updateProjectHandler(req, res) {
 }
 
 async function deleteProjectHandler(req, res) {
-  const { role } = req.user || {};
-  if (role !== 'Production Head') {
-    return res.status(403).json({ success: false, message: 'Forbidden' });
+  const role = req.user?.roleName || req.user?.role;
+  if (!['Super Admin', 'Admin'].includes(role)) {
+    return res.status(403).json({ success: false, message: 'Forbidden: Admin access required to permanently delete a project.' });
   }
 
   const { id } = req.params;
-  if (!id) return res.status(400).json({ success: false, message: 'Project id is required' });
+  const pId = parseInt(id, 10);
+  if (isNaN(pId) || pId <= 0) {
+    return res.status(400).json({ success: false, message: 'Invalid project ID. Must be a positive integer.' });
+  }
 
   try {
-    const ok = await softOrHardDeleteProject(id);
-    if (!ok) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ success: true });
+    const ok = await permanentlyDeleteProject(pId);
+    if (!ok) return res.status(404).json({ success: false, message: 'Project not found' });
+    return res.json({ success: true, message: 'Project and all associated production data permanently deleted.' });
   } catch (e) {
-    // Foreign key dependencies: should be handled by soft delete / cascade; current schema doesn't.
-    return res.status(409).json({ success: false, message: 'Unable to delete project (dependency exists)', error: e.message });
+    if (e.status === 404) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+    if (e.status === 400) {
+      return res.status(400).json({ success: false, message: e.message });
+    }
+    console.error('[deleteProjectHandler] Error:', e);
+    return res.status(500).json({ success: false, message: 'Failed to delete project', error: e.message });
   }
 }
 
 module.exports = {
   listProjects: secured(listProjects),
   getProject: secured(getProject),
+  getProjectHierarchy: secured(getProjectHierarchyController),
   createProject: secured(createProjectHandler),
   updateProject: secured(updateProjectHandler),
   deleteProject: secured(deleteProjectHandler),
 };
+
 

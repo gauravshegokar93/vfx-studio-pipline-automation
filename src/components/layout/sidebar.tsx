@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { useLuminaStore } from '@/lib/store';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { NotificationBell } from '@/components/layout/notifications';
 
 interface NavItem {
   label: string;
@@ -65,6 +66,7 @@ export function AppSidebar() {
       title: 'PRODUCTION',
       items: [
         { label: 'My Tasks', icon: CheckSquare, href: '/tasks', permission: 'tasks.view' },
+        { label: 'Review Queue', icon: CheckSquare, href: '/reviews', permission: 'projects.view' },
         { label: 'Department Queue', icon: LayoutList, href: '/department-queue', permission: 'departments.view' },
         { label: 'Department Progress', icon: Gauge, href: '/department-progress', permission: 'workspace.production_head' },
         { label: 'Artist Allocation', icon: Users, href: '/workload', permission: 'artists.view' },
@@ -122,7 +124,7 @@ export function AppSidebar() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search..."
-            className="w-full bg-sidebar-accent/70 border border-sidebar-border/30 rounded-md py-2 pl-9 pr-4 text-sm text-white placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-crimson transition-all"
+            className="w-full bg-sidebar-accent/70 border border-sidebar-border/30 rounded-md py-2 pl-9 pr-4 text-sm text-white placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-crimson transition-all duration-200"
           />
         </div>
       </div>
@@ -144,7 +146,7 @@ export function AppSidebar() {
                   <Link key={item.href + item.label} href={item.href}>
                     <span
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all group font-medium",
+                        "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-200 group font-medium hover:translate-x-1 active:scale-[0.97]",
                         isActive
                           ? "bg-sidebar-accent text-white shadow-sm"
                           : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-white"
@@ -152,7 +154,7 @@ export function AppSidebar() {
                     >
                       <item.icon
                         className={cn(
-                          "w-4 h-4 transition-colors shrink-0",
+                          "w-4 h-4 transition-fast shrink-0",
                           isActive
                             ? "text-crimson"
                             : "text-muted-foreground group-hover:text-crimson"
@@ -170,9 +172,9 @@ export function AppSidebar() {
 
       {/* Bottom User Section */}
       <div className="mt-auto p-4 border-t border-sidebar-border/40 bg-sidebar-accent/30">
-        <Link href="/settings" title="Profile & Settings">
-          <div className="flex items-center justify-between p-2 rounded-md hover:bg-sidebar-accent/80 transition-colors cursor-pointer group mb-3">
-            <div className="flex items-center gap-3 overflow-hidden">
+        <div className="flex items-center justify-between p-2 rounded-md transition-all duration-200 hover:bg-sidebar-accent/80 group mb-3">
+          <Link href="/settings" title="Profile & Settings" className="flex-1 overflow-hidden">
+            <div className="flex items-center gap-3">
               <Avatar className="h-8 w-8 border border-sidebar-border shrink-0">
                 <AvatarImage src={currentUser?.avatarUrl || undefined} />
                 <AvatarFallback className="text-xs font-semibold bg-crimson text-white">{avatarInitial}</AvatarFallback>
@@ -186,13 +188,20 @@ export function AppSidebar() {
                 </span>
               </div>
             </div>
-            <Settings className="w-4 h-4 text-muted-foreground group-hover:text-white transition-colors shrink-0" />
+          </Link>
+          <div className="flex items-center gap-1 shrink-0">
+            <NotificationBell />
+            <Link href="/settings">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground group-hover:text-white transition-colors">
+                <Settings className="w-4 h-4 shrink-0" />
+              </Button>
+            </Link>
           </div>
-        </Link>
+        </div>
 
         <Button
           variant="ghost"
-          className="w-full justify-start text-muted-foreground hover:text-white hover:bg-sidebar-accent p-2 h-auto text-xs font-medium"
+          className="w-full justify-start text-muted-foreground hover:text-white hover:bg-sidebar-accent transition-all duration-200 active:scale-[0.97] p-2 h-auto text-xs font-medium"
           onClick={() => {
             logout();
             router.replace("/login");

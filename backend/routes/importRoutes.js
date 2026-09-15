@@ -24,9 +24,14 @@ const upload = multer({
 router.post('/upload', authMiddleware(), upload.single('file'), importController.uploadExcel);
 router.get('/batches', authMiddleware(), importController.getBatches);
 router.get('/batches/:batchId', authMiddleware(), importController.getBatchDetails);
+router.get('/batches/:batchId/summary', authMiddleware(), importController.getBatchSummary);
 router.get('/batches/:batchId/rows', authMiddleware(), importController.getBatchRows);
+
 router.put('/rows/:rowId', authMiddleware(), importController.updateRow);
 router.post('/batches/:batchId/revalidate', authMiddleware(), importController.revalidateBatch);
+router.post('/batches/:batchId/approve', authMiddleware(), importController.approveBatch);
+router.post('/batches/:batchId/create-tasks', authMiddleware(), importController.createBatchTasks);
 
 console.log("Registering Import Routes...");
 module.exports = router;
+

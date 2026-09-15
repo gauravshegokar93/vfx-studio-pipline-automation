@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, RefreshCw, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { formatDateLocal } from '@/lib/formatTime';
 import { importService, ImportBatch, ImportRow } from '@/services/importService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -70,9 +71,49 @@ export default function BidSheetImportPage() {
         }
     };
 
-    const selectBatch = (batch: ImportBatch) => {
+    const [isCreatingTasks, setIsCreatingTasks] = useState(false);
+    const [taskSummary, setTaskSummary] = useState<any | null>(null);
+    const [batchSummary, setBatchSummary] = useState<any | null>(null);
+
+    const selectBatch = async (batch: ImportBatch) => {
         setSelectedBatch(batch);
         loadRows(batch.ImportBatchID);
+        try {
+            const summary = await importService.getBatchSummary(batch.ImportBatchID);
+            setBatchSummary(summary);
+        } catch (err) {
+            setBatchSummary(null);
+        }
+    };
+
+    const handleApprove = async () => {
+        if (!selectedBatch) return;
+        try {
+            await importService.approveBatch(selectedBatch.ImportBatchID);
+            toast({ title: 'Batch Approved successfully!' });
+            loadBatches();
+            const updated = await importService.getBatches().then(res => res.find(b => b.ImportBatchID === selectedBatch.ImportBatchID));
+            if (updated) setSelectedBatch(updated);
+        } catch (error: any) {
+            toast({ title: 'Approval failed', description: error.message, variant: 'destructive' });
+        }
+    };
+
+    const handleCreateTasks = async () => {
+        if (!selectedBatch) return;
+        setIsCreatingTasks(true);
+        try {
+            const res = await importService.createTasks(selectedBatch.ImportBatchID);
+            setTaskSummary(res.data);
+            toast({ 
+                title: 'Tasks Created Successfully', 
+                description: `Created ${res.data.tasksCreated} new tasks. ${res.data.tasksExisting} tasks already existed.`
+            });
+        } catch (error: any) {
+            toast({ title: 'Task creation failed', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsCreatingTasks(false);
+        }
     };
 
     const startEditing = (row: ImportRow) => {
@@ -100,7 +141,6 @@ export default function BidSheetImportPage() {
             await importService.revalidateBatch(selectedBatch.ImportBatchID);
             loadBatches();
             loadRows(selectedBatch.ImportBatchID);
-            // Refresh selectedBatch context
             const batch = await importService.getBatches().then(res => res.find(b => b.ImportBatchID === selectedBatch.ImportBatchID));
             if (batch) setSelectedBatch(batch);
             toast({ title: 'Revalidation complete' });
@@ -110,6 +150,8 @@ export default function BidSheetImportPage() {
     };
 
     const filteredRows = rows.filter(r => filter === 'ALL' || r.ValidationStatus === filter);
+
+
 
     return (
         <div className="flex h-screen bg-background text-foreground">
@@ -148,12 +190,12 @@ export default function BidSheetImportPage() {
                                     <Button 
                                         key={batch.ImportBatchID} 
                                         variant={selectedBatch?.ImportBatchID === batch.ImportBatchID ? "default" : "outline"}
-                                        onClick={() => selectBatch(batch)}
+                                        onClick={() => { selectBatch(batch); setTaskSummary(null); }}
                                         className="whitespace-nowrap"
                                     >
                                         <FileSpreadsheet className="mr-2 h-4 w-4" />
                                         {batch.BatchName} 
-                                        <Badge variant="secondary" className="ml-2">{new Date(batch.StartedOn).toLocaleDateString()}</Badge>
+                                        <Badge variant="secondary" className="ml-2">{formatDateLocal(batch.StartedOn)}</Badge>
                                     </Button>
                                 ))}
                             </div>
@@ -188,12 +230,105 @@ export default function BidSheetImportPage() {
                                         <div className="text-2xl font-bold">{selectedBatch.ImportStatus}</div>
                                         <p className="text-sm text-muted-foreground">Status</p>
                                     </div>
-                                    <Button onClick={revalidate} variant="outline" size="sm">
-                                        <RefreshCw className="mr-2 h-4 w-4" /> Revalidate
-                                    </Button>
+                                    <div className="flex gap-2">
+                                        <Button onClick={revalidate} variant="outline" size="sm">
+                                            <RefreshCw className="mr-2 h-4 w-4" /> Revalidate
+                                        </Button>
+                                        {selectedBatch.ImportStatus !== 'APPROVED' && selectedBatch.FailedRecords === 0 && (
+                                            <Button onClick={handleApprove} variant="default" size="sm">
+                                                Approve Batch
+                                            </Button>
+                                        )}
+                                        {(selectedBatch.ImportStatus === 'APPROVED' || selectedBatch.ImportStatus === 'COMPLETED') && (
+                                            <Button onClick={handleCreateTasks} disabled={isCreatingTasks} variant="default" size="sm">
+                                                {isCreatingTasks ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                                Create Production Tasks
+                                            </Button>
+                                        )}
+                                    </div>
                                 </CardContent>
                             </Card>
                         </div>
+
+                        {batchSummary && (
+                            <Card className="border-blue-500/30 bg-blue-500/5">
+                                <CardHeader className="py-3 flex flex-row items-center justify-between">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                        <FileSpreadsheet className="h-5 w-5 text-blue-500" /> Excel Bid Sheet Summary — {batchSummary.projectName}
+                                    </CardTitle>
+                                    <div className="text-xs text-muted-foreground">
+                                        Reel(s): <span className="font-bold text-foreground">{batchSummary.reels.join(', ') || 'N/A'}</span>
+                                        {batchSummary.earliestETA && (
+                                            <span className="ml-3">ETA Range: <span className="font-bold text-foreground">{batchSummary.earliestETA} to {batchSummary.latestETA || batchSummary.earliestETA}</span></span>
+                                        )}
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold">{batchSummary.totalShots}</div>
+                                        <div className="text-xs text-muted-foreground">Total Shots</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-indigo-500">{batchSummary.rotoHours}</div>
+                                        <div className="text-xs text-muted-foreground">Roto Bid</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-cyan-500">{batchSummary.paintHours}</div>
+                                        <div className="text-xs text-muted-foreground">Paint Bid</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-emerald-500">{batchSummary.compHours}</div>
+                                        <div className="text-xs text-muted-foreground">Comp Bid</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-amber-500">{batchSummary.cgHours}</div>
+                                        <div className="text-xs text-muted-foreground">CG Bid</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-primary">{batchSummary.totalHours}</div>
+                                        <div className="text-xs text-muted-foreground">Total Bid</div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {taskSummary && (
+
+                            <Card className="border-primary/50 bg-primary/5">
+                                <CardHeader className="py-3">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                        <CheckCircle className="h-5 w-5 text-green-500" /> Task Generation Summary
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold">{taskSummary.totalShots}</div>
+                                        <div className="text-xs text-muted-foreground">Total Shots</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-blue-500">{taskSummary.tasksToCreate}</div>
+                                        <div className="text-xs text-muted-foreground">Tasks to Create</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-amber-500">{taskSummary.tasksExisting}</div>
+                                        <div className="text-xs text-muted-foreground">Already Existing</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-green-500">{taskSummary.tasksCreated}</div>
+                                        <div className="text-xs text-muted-foreground">Tasks Created</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-muted-foreground">{taskSummary.skippedDepartments}</div>
+                                        <div className="text-xs text-muted-foreground">Skipped Depts</div>
+                                    </div>
+                                    <div className="bg-background p-3 rounded-md border">
+                                        <div className="text-xl font-bold text-red-500">{taskSummary.errors ? taskSummary.errors.length : 0}</div>
+                                        <div className="text-xs text-muted-foreground">Errors</div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
 
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between py-4">

@@ -6,6 +6,8 @@ import { taskService } from '@/services/taskService';
 import { Version } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { formatDateLocal } from '@/lib/formatTime';
 import { Input } from '@/components/ui/input';
 import { Search, Filter, PlayCircle, Eye, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -63,7 +65,7 @@ export default function VersionHistoryPage() {
                         <p className="text-[10px] text-crimson font-bold uppercase tracking-widest">SH_010</p>
                         <p className="text-sm font-bold text-white">Compositing</p>
                       </div>
-                      <span className="text-[10px] text-muted-foreground">{new Date(v.createdAt).toLocaleDateString()}</span>
+                      <span className="text-[10px] text-muted-foreground">{formatDateLocal(v.createdAt)}</span>
                    </div>
                    {v.reviewComment && (
                      <p className="text-xs text-muted-foreground italic line-clamp-2 border-l-2 border-sidebar-border pl-2">

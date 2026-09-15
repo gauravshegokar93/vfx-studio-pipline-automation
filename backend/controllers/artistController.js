@@ -21,12 +21,13 @@ async function withDb(callback) {
 }
 
 function requireAllowedRole(user) {
-  const role = user?.role;
-  return role === "Production Head" || role === "Department Supervisor";
+  const role = user?.roleName || user?.role;
+  return role === "Production Head" || role === "Department Supervisor" || role === "Super Admin" || role === "Admin";
 }
 
 function canDepartmentHeadCreateForDept(user, departmentId) {
-  if (user?.role !== "Department Supervisor") return true; // PH can create for any dept
+  const role = user?.roleName || user?.role;
+  if (role !== "Department Supervisor") return true; // PH/Admin can create for any dept
   return String(user.departmentId) === String(departmentId);
 }
 
@@ -135,13 +136,14 @@ async function getArtists(req, res) {
     return res.status(403).json({ success: false, message: "Forbidden" });
   }
 
-  if (user?.role === "Department Supervisor") {
+  const userRole = user?.roleName || user?.role;
+  if (userRole === "Department Supervisor") {
     where.push("a.DepartmentId = @RequesterDeptId");
     request.input("RequesterDeptId", sql.BigInt, user.departmentId);
   }
 
   if (departmentId) {
-    if (user?.role === "Department Supervisor" && String(departmentId) !== String(user.departmentId)) {
+    if (userRole === "Department Supervisor" && String(departmentId) !== String(user.departmentId)) {
       return res.status(403).json({ success: false, message: "Forbidden for this department" });
     }
     where.push("a.DepartmentId = @DepartmentId");
@@ -211,7 +213,8 @@ async function getArtistById(req, res) {
     const request = pool.request();
     request.input("ArtistId", sql.UniqueIdentifier, id);
 
-    if (user?.role === "Department Supervisor") {
+    const userRole = user?.roleName || user?.role;
+    if (userRole === "Department Supervisor") {
       request.input("RequesterDeptId", sql.BigInt, user.departmentId);
 
       const result = await request.query(`
@@ -283,7 +286,8 @@ async function updateArtist(req, res) {
     return res.status(400).json({ success: false, message: "Invalid Shift" });
   }
 
-  if (user?.role === "Department Supervisor" && String(departmentId) !== String(user.departmentId)) {
+  const userRole = user?.roleName || user?.role;
+  if (userRole === "Department Supervisor" && String(departmentId) !== String(user.departmentId)) {
     return res.status(403).json({ success: false, message: "Forbidden for this department" });
   }
 
@@ -332,7 +336,8 @@ async function toggleArtistActive(req, res) {
     const request = pool.request();
     request.input("ArtistId", sql.UniqueIdentifier, id);
 
-    if (user?.role === "Department Supervisor") {
+    const userRole = user?.roleName || user?.role;
+    if (userRole === "Department Supervisor") {
       request.input("RequesterDeptId", sql.BigInt, user.departmentId);
 
       const result = await request.query(`
