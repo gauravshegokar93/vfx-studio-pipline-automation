@@ -84,9 +84,9 @@ interface HierarchyDept {
 // ============================================================
 // Roles that require org fields (from real RoleMaster)
 // ============================================================
-const ROLE_REQUIRES_DEPT = ['Artist', 'QC Artist', 'Team Lead', 'Project Manager'];
+const ROLE_REQUIRES_DEPT = ['Artist', 'QC Artist', 'Team Lead'];
 const ROLE_REQUIRES_TEAM = ['Artist', 'QC Artist', 'Team Lead'];
-const ROLE_REQUIRES_LEAD = ['Artist', 'QC Artist'];
+const ROLE_REQUIRES_LEAD = ['Artist', 'QC Artist', 'Team Lead'];
 
 const SYSTEM_MODULES = [
   { id: 'dashboard.view', label: 'Dashboard' },
@@ -234,6 +234,9 @@ export default function UserManagementPage() {
 
   // Hierarchy
   const [hierarchy, setHierarchy] = useState<HierarchyDept[]>([]);
+  const [systemAdministration, setSystemAdministration] = useState<HierarchyUser[]>([]);
+  const [projectManagement, setProjectManagement] = useState<HierarchyUser[]>([]);
+  const [productionHeads, setProductionHeads] = useState<HierarchyUser[]>([]);
   const [loadingHierarchy, setLoadingHierarchy] = useState(false);
 
   // Team management
@@ -306,22 +309,26 @@ export default function UserManagementPage() {
 
   // ==================== Org cascade for Create form ====================
 
-  const handleRoleChange = (role: string) => {
+  const handleRoleChange = async (role: string) => {
     setFormData(prev => ({ ...prev, role, departmentId: '', teamId: '', leadId: '' }));
     setFormTeams([]);
     setFormLeads([]);
+    if (role === 'Project Manager') {
+      await loadLeadsForDept('', '', role);
+    }
   };
 
   const handleDeptChange = async (departmentId: string) => {
-    setFormData(prev => ({ ...prev, departmentId, teamId: '', leadId: '' }));
+    const finalDept = departmentId === 'none' ? '' : departmentId;
+    setFormData(prev => ({ ...prev, departmentId: finalDept, teamId: '', leadId: '' }));
     setFormLeads([]);
     setFormTeams([]);
 
-    if (!departmentId || !ROLE_REQUIRES_TEAM.includes(formData.role)) return;
+    if (!finalDept) return;
 
     setLoadingFormTeams(true);
     try {
-      const res = await apiClient.get(`/teams?departmentId=${departmentId}`);
+      const res = await apiClient.get(`/teams?departmentId=${finalDept}`);
       setFormTeams(res.data.items || []);
     } catch (e) {
       console.error('[handleDeptChange teams]', e);
@@ -329,22 +336,21 @@ export default function UserManagementPage() {
       setLoadingFormTeams(false);
     }
 
-    // Also load leads for dept (if role requires lead)
-    if (ROLE_REQUIRES_LEAD.includes(formData.role)) {
-      await loadLeadsForDept(departmentId, '');
-    }
+    // Always load leads for dept
+    await loadLeadsForDept(finalDept, '', formData.role);
   };
 
   const handleTeamChange = async (teamId: string) => {
-    setFormData(prev => ({ ...prev, teamId, leadId: '' }));
-    if (!ROLE_REQUIRES_LEAD.includes(formData.role)) return;
-    await loadLeadsForDept(formData.departmentId, teamId);
+    const finalTeam = teamId === 'none' ? '' : teamId;
+    setFormData(prev => ({ ...prev, teamId: finalTeam, leadId: '' }));
+    await loadLeadsForDept(formData.departmentId, finalTeam, formData.role);
   };
 
-  const loadLeadsForDept = async (departmentId: string, teamId: string) => {
+  const loadLeadsForDept = async (departmentId: string, teamId: string, roleParam: string) => {
     setLoadingFormLeads(true);
     try {
-      let url = `/users/reporting-leads?departmentId=${departmentId}`;
+      let url = `/users/reporting-leads?role=${encodeURIComponent(roleParam)}`;
+      if (departmentId && departmentId !== 'none') url += `&departmentId=${departmentId}`;
       if (teamId && teamId !== 'none') url += `&teamId=${teamId}`;
       const res = await apiClient.get(url);
       setFormLeads(res.data.items || []);
@@ -424,7 +430,10 @@ export default function UserManagementPage() {
     return permissions.find((p: any) => p.PermissionName === name)?.PermissionId;
   };
 
-  const handleCreateUser = async () => {
+  const handleCreateUser = async (e?: any) => {
+    if (e && e.preventDefault) e.preventDefault();
+    console.log('[handleCreateUser] Triggered', formData);
+    
     if (!formData.name || !formData.email || !formData.employeeCode) {
       toast({ variant: 'destructive', title: 'Missing Data', description: 'Basic profile details are required.' });
       return;
@@ -479,6 +488,7 @@ export default function UserManagementPage() {
       setFormTeams([]);
       setFormLeads([]);
       fetchUsers();
+      setActiveTab('registry');
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error', description: e.response?.data?.message || 'Failed to create user' });
     }
@@ -878,28 +888,27 @@ export default function UserManagementPage() {
                           </Select>
                         </div>
 
-                        {/* Department — shown when role requires it */}
-                        {formData.role && ROLE_REQUIRES_DEPT.includes(formData.role) && (
-                          <div className="space-y-2">
-                            <Label>Department {ROLE_REQUIRES_DEPT.includes(formData.role) ? '*' : ''}</Label>
-                            <Select value={formData.departmentId} onValueChange={handleDeptChange}>
-                              <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
-                                <SelectValue placeholder="Select Department" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-sidebar border-sidebar-border text-white">
-                                {departments.map((d: any) => (
-                                  <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
+                        {/* Department — always shown */}
+                        <div className="space-y-2">
+                          <Label>Department {formData.role && ROLE_REQUIRES_DEPT.includes(formData.role) ? '*' : ''}</Label>
+                          <Select value={formData.departmentId || 'none'} onValueChange={handleDeptChange}>
+                            <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
+                              <SelectValue placeholder="Select Department" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-sidebar border-sidebar-border text-white">
+                              <SelectItem value="none">No Department</SelectItem>
+                              {departments.map((d: any) => (
+                                <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                        {/* Team — shown when role requires it and dept selected */}
-                        {formData.departmentId && ROLE_REQUIRES_TEAM.includes(formData.role) && (
+                        {/* Team — shown if dept selected */}
+                        {formData.departmentId && (
                           <div className="space-y-2">
                             <Label>Team</Label>
-                            <Select value={formData.teamId} onValueChange={handleTeamChange}>
+                            <Select value={formData.teamId || 'none'} onValueChange={handleTeamChange}>
                               <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
                                 <SelectValue placeholder={loadingFormTeams ? 'Loading teams...' : 'Select Team'} />
                               </SelectTrigger>
@@ -916,11 +925,11 @@ export default function UserManagementPage() {
                           </div>
                         )}
 
-                        {/* Reporting Lead — shown for Artist/QC Artist */}
-                        {formData.departmentId && ROLE_REQUIRES_LEAD.includes(formData.role) && (
+                        {/* Reporting Lead */}
+                        {(formData.departmentId || formData.role === 'Project Manager') && (ROLE_REQUIRES_LEAD.includes(formData.role) || formData.role === 'Project Manager') && (
                           <div className="space-y-2">
                             <Label>Reporting Lead</Label>
-                            <Select value={formData.leadId} onValueChange={val => setFormData({ ...formData, leadId: val })}>
+                            <Select value={formData.leadId || 'none'} onValueChange={val => setFormData({ ...formData, leadId: val === 'none' ? '' : val })}>
                               <SelectTrigger className="bg-sidebar-accent border-sidebar-border">
                                 <SelectValue placeholder={loadingFormLeads ? 'Loading leads...' : 'Select Reporting Lead'} />
                               </SelectTrigger>
@@ -934,7 +943,7 @@ export default function UserManagementPage() {
                                 ))}
                                 {formLeads.length === 0 && !loadingFormLeads && (
                                   <div className="px-3 py-2 text-xs text-muted-foreground">
-                                    No active leads in this scope.
+                                    {(formData.role === 'Artist' || formData.role === 'QC Artist') ? 'No Team Lead configured for this team' : 'No active leads in this scope.'}
                                   </div>
                                 )}
                               </SelectContent>

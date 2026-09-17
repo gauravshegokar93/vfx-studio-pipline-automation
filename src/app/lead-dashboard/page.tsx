@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Clock, Zap, Film, AlertTriangle, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Users, Clock, Zap, Film, AlertTriangle, ShieldCheck, RefreshCw, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Dialog, 
@@ -15,7 +15,8 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogTrigger,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
@@ -58,6 +59,11 @@ export default function LeadDashboardPage() {
   const unassignedCount = tasks.filter(t => !t.assignedArtistId && t.status === 'Unassigned').length;
   const assignedCount = tasks.filter(t => t.assignedArtistId || t.status === 'Assigned').length;
 
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+  const [targetBid, setTargetBid] = useState<number>(0);
+  const [remarks, setRemarks] = useState<string>('');
+
   const handleOpenAssign = (task: TaskItem) => {
     setSelectedTask(task);
     setSelectedArtist(null);
@@ -85,6 +91,31 @@ export default function LeadDashboardPage() {
       loadData();
     } else {
       toast({ title: 'Assignment Error', description: res.message, variant: 'destructive' });
+    }
+  };
+
+  const handleOpenAdjustModal = (task: TaskItem) => {
+    setSelectedTask(task);
+    setTargetBid(task.targetBid !== undefined && task.targetBid !== null ? task.targetBid : (task.targetHours ? task.targetHours / 8 : 0));
+    setRemarks('');
+    setAdjustModalOpen(true);
+  };
+
+  const handleExecuteAdjustTarget = async () => {
+    if (!selectedTask) return;
+    setAdjusting(true);
+    try {
+      await taskService.adjustTarget(selectedTask.taskId, {
+        targetBid: targetBid,
+        remarks: remarks
+      });
+      toast({ title: 'Target Adjusted', description: `Target bid for ${selectedTask.taskCode} updated to ${targetBid} Bid.` });
+      setAdjustModalOpen(false);
+      loadData();
+    } catch (err: any) {
+      toast({ title: 'Update Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setAdjusting(false);
     }
   };
 
@@ -178,9 +209,13 @@ export default function LeadDashboardPage() {
                         {task.assignedArtist || <span className="text-yellow-500/80 text-xs italic">Unassigned</span>}
                       </TableCell>
                       <TableCell className="pr-6 text-right">
-                        {!task.assignedArtistId && (
+                        {!task.assignedArtistId ? (
                           <Button size="sm" variant="outline" className="hover:text-crimson border-sidebar-border" onClick={() => handleOpenAssign(task)}>
                             Allocate
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" className="hover:bg-yellow-500 hover:text-white transition-all text-[10px] h-7 border-sidebar-border" onClick={() => handleOpenAdjustModal(task)}>
+                            Adjust Target
                           </Button>
                         )}
                       </TableCell>
@@ -229,25 +264,118 @@ export default function LeadDashboardPage() {
             <div className="space-y-4 py-3">
               <p className="text-xs text-muted-foreground">Select an active artist to assign this task:</p>
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                {activeArtists.map(artist => (
-                  <div
-                    key={artist.userId || artist.id}
-                    className={cn(
-                      "p-3 rounded-xl border cursor-pointer flex justify-between items-center text-xs",
-                      selectedArtist?.userId === artist.userId ? "bg-crimson/20 border-crimson text-white" : "bg-sidebar-accent/30 border-sidebar-border"
-                    )}
-                    onClick={() => setSelectedArtist(artist)}
-                  >
-                    <span>{artist.fullName} ({artist.employeeCode})</span>
-                    <Button size="sm" variant="ghost">{selectedArtist?.userId === artist.userId ? 'Selected' : 'Select'}</Button>
-                  </div>
-                ))}
+                {activeArtists.map(artist => {
+                  const isSelected = !!selectedArtist && (
+                    (selectedArtist.userId !== undefined && selectedArtist.userId === artist.userId) ||
+                    (selectedArtist.id !== undefined && selectedArtist.id === artist.id)
+                  );
+                  return (
+                    <div
+                      key={artist.userId || artist.id}
+                      className={cn(
+                        "p-3 rounded-xl border cursor-pointer flex justify-between items-center text-xs transition-all",
+                        isSelected ? "bg-emerald-500/10 border-emerald-500 ring-1 ring-emerald-500 text-white" : "bg-sidebar-accent/30 border-sidebar-border hover:border-emerald-500/50"
+                      )}
+                      onClick={() => setSelectedArtist(artist)}
+                    >
+                      <span>{artist.fullName} ({artist.employeeCode})</span>
+                      <div className="flex items-center gap-2">
+                        {isSelected && <span className="text-emerald-500 font-bold text-[10px] uppercase">Selected</span>}
+                        {isSelected ? (
+                          <CheckCircle className="w-5 h-5 text-emerald-500" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border border-sidebar-border" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAssignModalOpen(false)}>Cancel</Button>
               <Button className="bg-crimson text-white font-bold" onClick={handleAssignArtist} disabled={assigning}>
                 {assigning ? 'Assigning...' : 'Assign'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Adjust Target Modal */}
+        <Dialog open={adjustModalOpen} onOpenChange={setAdjustModalOpen}>
+          <DialogContent className="bg-sidebar border-sidebar-border text-white max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-headline flex items-center gap-3">
+                <Clock className="text-yellow-400" /> Adjust Target: {selectedTask?.taskCode}
+              </DialogTitle>
+              <DialogDescription className="hidden">Form to adjust target bid.</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              {/* Context Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Assigned Artist</p>
+                  <p className="text-white font-bold text-sm flex items-center gap-2 mt-1">
+                    <Users className="w-4 h-4 text-blue-400" /> {selectedTask?.assignedArtist}
+                  </p>
+                </div>
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Client Estimate</p>
+                  <p className="text-white font-mono font-bold text-sm mt-1">
+                    {selectedTask?.estimatedBid !== undefined && selectedTask?.estimatedBid !== null ? selectedTask.estimatedBid.toFixed(2) : (selectedTask?.estimatedHours ? (selectedTask.estimatedHours / 8).toFixed(2) : '0.00')} Bid
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning Area */}
+              {selectedTask && (
+                (() => {
+                  const estBid = selectedTask.estimatedBid !== undefined && selectedTask.estimatedBid !== null ? selectedTask.estimatedBid : (selectedTask.estimatedHours ? selectedTask.estimatedHours / 8 : 0);
+                  if (targetBid > estBid) {
+                    return (
+                      <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-lg flex items-center gap-3">
+                        <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+                        <p className="text-xs text-red-400 font-medium">Warning: Target allocation ({targetBid.toFixed(2)} Bid) exceeds client estimate ({estBid.toFixed(2)} Bid).</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()
+              )}
+
+              {/* Input */}
+              <div className="space-y-3">
+                <p className="text-xs uppercase font-bold text-muted-foreground">New Target Allocation (Bid)</p>
+                <div className="relative">
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    min="0"
+                    value={targetBid} 
+                    onChange={(e) => setTargetBid(parseFloat(e.target.value) || 0)}
+                    className="bg-sidebar-accent/40 border-sidebar-border text-white text-lg font-mono py-6 pl-4 font-bold rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-crimson"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">Bid ({targetBid * 8} Hours)</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs uppercase font-bold text-muted-foreground">Remarks (Optional)</p>
+                <textarea 
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="w-full bg-sidebar-accent/40 border-sidebar-border text-white text-sm p-3 rounded-xl min-h-[80px] focus:outline-none focus:ring-1 focus:ring-crimson resize-none"
+                  placeholder="Reason for adjustment..."
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="border-t border-sidebar-border pt-4 gap-2">
+              <Button variant="ghost" onClick={() => setAdjustModalOpen(false)} className="text-muted-foreground hover:text-white">Cancel</Button>
+              <Button onClick={handleExecuteAdjustTarget} disabled={adjusting} className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-8">
+                {adjusting ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Clock className="w-4 h-4 mr-2" />}
+                Save Adjustment
               </Button>
             </DialogFooter>
           </DialogContent>

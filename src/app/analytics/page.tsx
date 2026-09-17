@@ -64,6 +64,7 @@ export default function AnalyticsPage() {
   const [stageId, setStageId] = useState<string>('all');
   const [artistId, setArtistId] = useState<string>('all');
   const [dateRange, setDateRange] = useState<string>('all');
+  const [complexity, setComplexity] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
@@ -80,6 +81,7 @@ export default function AnalyticsPage() {
         projectId,
         stageId,
         artistId,
+        complexity,
         dateRange,
         ...(dateRange === 'custom' ? { startDate, endDate } : {})
       };
@@ -95,7 +97,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, stageId, artistId, dateRange, startDate, endDate]);
+  }, [projectId, stageId, artistId, complexity, dateRange, startDate, endDate]);
 
   useEffect(() => {
     fetchAnalytics();
@@ -182,7 +184,21 @@ export default function AnalyticsPage() {
                   </SelectContent>
                 </Select>
               </div>
-
+              {/* Complexity Filter */}
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-muted-foreground" />
+                <Select value={complexity} onValueChange={setComplexity}>
+                  <SelectTrigger className="w-[150px] h-9 text-xs bg-sidebar border-sidebar-border">
+                    <SelectValue placeholder="All Complexities" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-sidebar-border text-white text-xs">
+                    <SelectItem value="all">All Complexities</SelectItem>
+                    {options?.complexities?.map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {/* Date Range Filter */}
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
@@ -238,7 +254,7 @@ export default function AnalyticsPage() {
               </div>
 
               {/* Reset Button */}
-              {(projectId !== 'all' || stageId !== 'all' || artistId !== 'all' || dateRange !== 'all') && (
+              {(projectId !== 'all' || stageId !== 'all' || artistId !== 'all' || complexity !== 'all' || dateRange !== 'all') && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -246,6 +262,7 @@ export default function AnalyticsPage() {
                     setProjectId('all');
                     setStageId('all');
                     setArtistId('all');
+                    setComplexity('all');
                     setDateRange('all');
                     setStartDate('');
                     setEndDate('');
@@ -718,6 +735,68 @@ export default function AnalyticsPage() {
               </div>
 
             </div>
+
+            {/* 12. COMPLEXITY ANALYTICS */}
+            {data.complexityAnalytics && data.complexityAnalytics.length > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="bg-card border-sidebar-border shadow-2xl">
+                  <CardHeader>
+                    <CardTitle className="text-white font-headline flex items-center gap-2">
+                      <Target className="w-5 h-5 text-green-400" />
+                      Complexity Volume & Delivery
+                    </CardTitle>
+                    <CardDescription>
+                      Task count and delivery consistency (On-Time vs Overdue) per complexity tier.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={data.complexityAnalytics} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                        <XAxis dataKey="complexity" stroke="#71717a" tick={{ fill: '#71717a', fontSize: 12 }} />
+                        <YAxis stroke="#71717a" tick={{ fill: '#71717a', fontSize: 12 }} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff' }}
+                          cursor={{ fill: '#27272a', opacity: 0.4 }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '10px' }} />
+                        <Bar dataKey="taskVolume" name="Total Tasks" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="completedCount" name="Completed" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="overdueCount" name="Overdue" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-card border-sidebar-border shadow-2xl">
+                  <CardHeader>
+                    <CardTitle className="text-white font-headline flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-blue-400" />
+                      Complexity Effort Variance
+                    </CardTitle>
+                    <CardDescription>
+                      Estimated vs Actual logged hours grouped by shot complexity.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={data.complexityAnalytics} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                        <XAxis dataKey="complexity" stroke="#71717a" tick={{ fill: '#71717a', fontSize: 12 }} />
+                        <YAxis stroke="#71717a" tick={{ fill: '#71717a', fontSize: 12 }} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff' }}
+                          cursor={{ fill: '#27272a', opacity: 0.4 }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '10px' }} />
+                        <Bar dataKey="estimatedHours" name="Estimated Hrs" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="actualHours" name="Actual Hrs" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* 13. ATTENTION REQUIRED OPERATIONAL TABLE */}
             <Card className="bg-card border-sidebar-border shadow-2xl">

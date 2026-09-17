@@ -82,7 +82,38 @@ async function markNotificationAsRead(req, res) {
   }
 }
 
+// 3. POST /api/notifications/mark-all-read - Mark all notifications as read
+async function markAllNotificationsAsRead(req, res) {
+  try {
+    const authUserId = parseInt(req.user?.userId, 10);
+
+    if (isNaN(authUserId) || authUserId <= 0) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid authenticated user.' });
+    }
+
+    const pool = await sql.connect(config);
+    const reqDb = pool.request();
+    reqDb.input('UserId', sql.BigInt, authUserId);
+
+    const result = await reqDb.query(`
+      UPDATE Notification 
+      SET IsRead = 1, ReadDate = GETDATE()
+      WHERE UserID = @UserId AND IsRead = 0
+    `);
+
+    return res.status(200).json({
+      success: true,
+      message: 'All notifications marked as read.',
+      count: result.rowsAffected[0]
+    });
+  } catch (err) {
+    console.error('[markAllNotificationsAsRead] Error:', err);
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to mark all notifications as read.', details: err.message });
+  }
+}
+
 router.get('/', securedAny(getNotifications));
+router.post('/mark-all-read', securedAny(markAllNotificationsAsRead));
 router.post('/:id/read', securedAny(markNotificationAsRead));
 
 module.exports = router;

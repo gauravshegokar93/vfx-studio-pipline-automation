@@ -36,6 +36,7 @@ export interface TaskItem {
   assignedArtist?: string | null;
   assignedDate?: string | null;
   remarks?: string | null;
+  complexity?: string;
 }
 
 export interface UserItem {
@@ -121,6 +122,9 @@ export interface ArtistWorkloadReportItem {
   reworkCount: number;
   completedCount: number;
   overdueCount: number;
+  reviewSubmissions?: number;
+  historicalReworkCount?: number;
+  taskComplexities: string;
   allocatedBids: number;
   targetBid: number;
   actualBid: number;
@@ -226,13 +230,25 @@ export const taskService = {
     }
   },
 
-  assignTask: async (payload: AssignmentPayload): Promise<{ success: boolean; message: string }> => {
+  async assignTask(payload: AssignmentPayload) {
     try {
-      const res = await apiClient.post('/assignments', payload);
-      return { success: true, message: res.data.message || 'Task assigned successfully' };
+      const response = await apiClient.post('/assignments', payload);
+      return response.data;
     } catch (err: any) {
+      console.error('[taskService] assignTask error:', err);
       const message = err.response?.data?.message || err.message || 'Failed to assign task';
-      return { success: false, message };
+      throw new Error(message);
+    }
+  },
+
+  async adjustTarget(taskId: number, payload: { targetBid?: number; targetHours?: number; remarks?: string }) {
+    try {
+      const response = await apiClient.put(`/assignments/${taskId}/target`, payload);
+      return response.data;
+    } catch (err: any) {
+      console.error('[taskService] adjustTarget error:', err);
+      const message = err.response?.data?.message || err.message || 'Failed to adjust target';
+      throw new Error(message);
     }
   },
 
@@ -460,6 +476,17 @@ export const taskService = {
     } catch (err) {
       console.error('[taskService.getTimeline] Error:', err);
       return [];
+    }
+  },
+
+  reopenForClientRevision: async (taskId: number | string): Promise<{ success: boolean; message: string; error?: string; statusId?: number }> => {
+    try {
+      const res = await apiClient.post(`/tasks/${taskId}/client-revision`);
+      return { success: true, message: res.data.message, statusId: res.data.statusId };
+    } catch (err: any) {
+      const error = err.response?.data?.error || 'REOPEN_FAILED';
+      const message = err.response?.data?.message || err.message || 'Failed to reopen task for client revision';
+      return { success: false, error, message };
     }
   }
 };

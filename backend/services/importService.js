@@ -351,54 +351,170 @@ exports.getBatchRows = async (batchId) => {
 
 exports.updateRow = async (rowId, updates) => {
     const pool = await sql.connect(config);
-    
-    const safeUpdate = (val) => val === undefined ? null : val;
-    
-    await pool.request()
-        .input('RowID', sql.BigInt, rowId)
-        .input('ShotName', sql.NVarChar, safeUpdate(updates.ShotName))
-        .input('Project', sql.NVarChar, safeUpdate(updates.Project))
-        .input('Episode', sql.NVarChar, safeUpdate(updates.Episode))
-        .input('Batch', sql.NVarChar, safeUpdate(updates.Batch))
-        .input('Department', sql.NVarChar, safeUpdate(updates.Department))
-        .input('SOW', sql.NVarChar, safeUpdate(updates.SOW))
-        .input('Notes', sql.NVarChar, safeUpdate(updates.Notes))
-        .input('Vendor', sql.NVarChar, safeUpdate(updates.Vendor))
-        .input('Complexity', sql.NVarChar, safeUpdate(updates.Complexity))
-        .input('RotoBid', sql.Decimal, safeUpdate(updates.RotoBid))
-        .input('PaintBid', sql.Decimal, safeUpdate(updates.PaintBid))
-        .input('CompBid', sql.Decimal, safeUpdate(updates.CompBid))
-        .input('CGBid', sql.Decimal, safeUpdate(updates.CGBid))
-        .input('TotalBid', sql.Decimal, safeUpdate(updates.TotalBid))
-        .input('HeadIn', sql.Int, safeUpdate(updates.HeadIn))
-        .input('TailOut', sql.Int, safeUpdate(updates.TailOut))
-        .input('FrameRange', sql.NVarChar, safeUpdate(updates.FrameRange))
-        .input('ETA', sql.NVarChar, safeUpdate(updates.ETA ? String(updates.ETA) : null))
-        .input('Status', sql.NVarChar, safeUpdate(updates.Status))
-        .query(`
-            UPDATE ImportBatchRow SET 
-                ShotName = ISNULL(@ShotName, ShotName),
-                Project = ISNULL(@Project, Project),
-                Episode = ISNULL(@Episode, Episode),
-                Batch = ISNULL(@Batch, Batch),
-                Department = ISNULL(@Department, Department),
-                SOW = ISNULL(@SOW, SOW),
-                Notes = ISNULL(@Notes, Notes),
-                Vendor = ISNULL(@Vendor, Vendor),
-                Complexity = ISNULL(@Complexity, Complexity),
-                RotoBid = ISNULL(@RotoBid, RotoBid),
-                PaintBid = ISNULL(@PaintBid, PaintBid),
-                CompBid = ISNULL(@CompBid, CompBid),
-                CGBid = ISNULL(@CGBid, CGBid),
-                TotalBid = ISNULL(@TotalBid, TotalBid),
-                HeadIn = ISNULL(@HeadIn, HeadIn),
-                TailOut = ISNULL(@TailOut, TailOut),
-                FrameRange = ISNULL(@FrameRange, FrameRange),
-                ETA = ISNULL(@ETA, ETA),
-                Status = ISNULL(@Status, Status)
-            WHERE BatchRowID = @RowID
-        `);
-    return { success: true };
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+        const safeUpdate = (val) => val === undefined ? null : val;
+        
+        await transaction.request()
+            .input('RowID', sql.BigInt, rowId)
+            .input('ShotName', sql.NVarChar(255), safeUpdate(updates.ShotName))
+            .input('Project', sql.NVarChar(255), safeUpdate(updates.Project))
+            .input('Episode', sql.NVarChar(255), safeUpdate(updates.Episode))
+            .input('Batch', sql.NVarChar(255), safeUpdate(updates.Batch))
+            .input('Department', sql.NVarChar(255), safeUpdate(updates.Department))
+            .input('SOW', sql.NVarChar(255), safeUpdate(updates.SOW))
+            .input('Notes', sql.NVarChar(255), safeUpdate(updates.Notes))
+            .input('Vendor', sql.NVarChar(255), safeUpdate(updates.Vendor))
+            .input('Complexity', sql.NVarChar(255), safeUpdate(updates.Complexity))
+            .input('RotoBid', sql.Decimal, safeUpdate(updates.RotoBid))
+            .input('PaintBid', sql.Decimal, safeUpdate(updates.PaintBid))
+            .input('CompBid', sql.Decimal, safeUpdate(updates.CompBid))
+            .input('CGBid', sql.Decimal, safeUpdate(updates.CGBid))
+            .input('TotalBid', sql.Decimal, safeUpdate(updates.TotalBid))
+            .input('HeadIn', sql.Int, safeUpdate(updates.HeadIn))
+            .input('TailOut', sql.Int, safeUpdate(updates.TailOut))
+            .input('FrameRange', sql.NVarChar, safeUpdate(updates.FrameRange))
+            .input('ETA', sql.NVarChar, safeUpdate(updates.ETA ? String(updates.ETA) : null))
+            .input('Status', sql.NVarChar, safeUpdate(updates.Status))
+            .query(`
+                UPDATE ImportBatchRow SET 
+                    ShotName = ISNULL(@ShotName, ShotName),
+                    Project = ISNULL(@Project, Project),
+                    Episode = ISNULL(@Episode, Episode),
+                    Batch = ISNULL(@Batch, Batch),
+                    Department = ISNULL(@Department, Department),
+                    SOW = ISNULL(@SOW, SOW),
+                    Notes = ISNULL(@Notes, Notes),
+                    Vendor = ISNULL(@Vendor, Vendor),
+                    Complexity = ISNULL(@Complexity, Complexity),
+                    RotoBid = ISNULL(@RotoBid, RotoBid),
+                    PaintBid = ISNULL(@PaintBid, PaintBid),
+                    CompBid = ISNULL(@CompBid, CompBid),
+                    CGBid = ISNULL(@CGBid, CGBid),
+                    TotalBid = ISNULL(@TotalBid, TotalBid),
+                    HeadIn = ISNULL(@HeadIn, HeadIn),
+                    TailOut = ISNULL(@TailOut, TailOut),
+                    FrameRange = ISNULL(@FrameRange, FrameRange),
+                    ETA = ISNULL(@ETA, ETA),
+                    Status = ISNULL(@Status, Status)
+                WHERE BatchRowID = @RowID
+            `);
+
+        // 1. Fetch updated row to resolve hierarchy
+        const rowRes = await transaction.request()
+            .input('RowID', sql.BigInt, rowId)
+            .query(`SELECT * FROM ImportBatchRow WHERE BatchRowID = @RowID`);
+            
+        const row = rowRes.recordset[0];
+        const synchronizedTasks = [];
+        
+        if (row) {
+            const projectCodeName = (row.Project || '').trim();
+            const reelName = (row.Episode || row.Reel || '').trim();
+            const shotCode = (row.ShotName || row.ClientShotName || '').trim();
+            
+            if (projectCodeName && reelName && shotCode) {
+                // 2. Resolve Hierarchy deterministically
+                const projRes = await transaction.request()
+                    .input('Project', sql.NVarChar(255), projectCodeName)
+                    .query(`SELECT ProjectId FROM ProjectMaster WITH (UPDLOCK, HOLDLOCK) WHERE ProjectCode = @Project OR ProjectName = @Project`);
+                    
+                if (projRes.recordset.length > 0) {
+                    const projectId = projRes.recordset[0].ProjectId;
+                    
+                    const reelRes = await transaction.request()
+                        .input('ProjectId', sql.BigInt, projectId)
+                        .input('Reel', sql.NVarChar(255), reelName)
+                        .query(`SELECT ReelId FROM ReelMaster WITH (UPDLOCK, HOLDLOCK) WHERE ProjectId = @ProjectId AND ReelName = @Reel`);
+                        
+                    if (reelRes.recordset.length > 0) {
+                        const reelId = reelRes.recordset[0].ReelId;
+                        
+                        const seqRes = await transaction.request()
+                            .input('ReelId', sql.BigInt, reelId)
+                            .input('Sequence', sql.NVarChar(255), reelName)
+                            .query(`SELECT SequenceId FROM SequenceMaster WITH (UPDLOCK, HOLDLOCK) WHERE ReelId = @ReelId AND SequenceCode = @Sequence`);
+                            
+                        if (seqRes.recordset.length > 0) {
+                            const sequenceId = seqRes.recordset[0].SequenceId;
+                            
+                            const shotRes = await transaction.request()
+                                .input('SequenceId', sql.BigInt, sequenceId)
+                                .input('ShotCode', sql.NVarChar(255), shotCode)
+                                .query(`SELECT ShotId FROM ShotMaster WITH (UPDLOCK, HOLDLOCK) WHERE SequenceId = @SequenceId AND ShotCode = @ShotCode`);
+                                
+                            if (shotRes.recordset.length > 0) {
+                                const shotId = shotRes.recordset[0].ShotId;
+                                
+                                // 3. Resolve Workflow Stages
+                                const stageMap = {};
+                                const stagesRes = await transaction.request().query(`SELECT StageId, StageName FROM WorkflowStageMaster`);
+                                for (const s of stagesRes.recordset) {
+                                    stageMap[s.StageName.trim().toUpperCase()] = Number(s.StageId);
+                                }
+                                
+                                const deptBids = [
+                                    { stageId: stageMap['ROTO'], name: 'Roto', bid: row.RotoBid },
+                                    { stageId: stageMap['PAINT'], name: 'Paint', bid: row.PaintBid },
+                                    { stageId: stageMap['COMP'], name: 'Comp', bid: row.CompBid },
+                                    { stageId: stageMap['CG'], name: 'CG', bid: row.CGBid }
+                                ];
+                                
+                                const description = (row.SOW || row.VFXWorkDescription || row.Notes || '').trim();
+                                
+                                for (const item of deptBids) {
+                                    if (!item.stageId) continue;
+                                    
+                                    const taskRes = await transaction.request()
+                                        .input('ShotId', sql.BigInt, shotId)
+                                        .input('StageId', sql.BigInt, item.stageId)
+                                        .query(`SELECT TaskID FROM TaskMaster WITH (UPDLOCK, HOLDLOCK) WHERE ShotID = @ShotId AND WorkflowStageID = @StageId`);
+                                        
+                                    if (taskRes.recordset.length > 0) {
+                                        const taskId = taskRes.recordset[0].TaskID;
+                                        let estimatedHours = 0;
+                                        let estimatedBid = 0;
+                                        
+                                        if (item.bid && Number(item.bid) > 0) {
+                                            estimatedBid = Number(item.bid);
+                                            estimatedHours = estimatedBid * 8;
+                                        }
+                                        
+                                        await transaction.request()
+                                            .input('TaskId', sql.BigInt, taskId)
+                                            .input('EstimatedHours', sql.Decimal(10, 2), estimatedHours)
+                                            .input('Description', sql.NVarChar, description || null)
+                                            .query(`
+                                                UPDATE TaskMaster
+                                                SET EstimatedHours = @EstimatedHours,
+                                                    Description = ISNULL(@Description, Description)
+                                                WHERE TaskID = @TaskId
+                                            `);
+                                            
+                                        synchronizedTasks.push({
+                                            taskId: taskId,
+                                            department: item.name,
+                                            estimatedBid: estimatedBid,
+                                            estimatedHours: estimatedHours
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        await transaction.commit();
+        return { success: true, updatedRow: true, tasksSynchronized: synchronizedTasks.length > 0, synchronizedTasks };
+        
+    } catch (err) {
+        await transaction.rollback();
+        throw err;
+    }
 };
 
 exports.revalidateBatch = async (batchId) => {

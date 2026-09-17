@@ -17,51 +17,33 @@ function securedReadOnly(handler) {
 
 // Helper: Department compatibility check using REAL DepartmentMaster names
 // WorkflowStageMaster: Roto(1), Paint(2), Comp(3), CG(4)
-// DepartmentMaster: Administration(1), Production(2), Animation(3), Modeling(4),
-//                   Rigging(5), Lighting(6), Compositing(7), Quality Control(8)
+// DepartmentMaster (Active Production): Roto, Paint, Comp, CG
 function validateDepartmentCompatibility(stageName, deptName) {
   const sName = (stageName || '').trim().toLowerCase();
   const dName = (deptName || '').trim().toLowerCase();
 
-  // Roto tasks → Animation dept is the primary mapping (also allow Production as a fallback)
+  // Roto tasks → Roto dept
   if (sName === 'roto') {
-    if (dName === 'animation' || dName === 'production') {
-      return { valid: true };
-    }
-    return {
-      valid: false,
-      message: `Cannot assign Roto task to artist in '${deptName}' department. Expected Animation department.`
-    };
+    if (dName === 'roto') return { valid: true };
+    return { valid: false, message: `Cannot assign Roto task to artist in '${deptName}' department. Expected Roto department.` };
   }
 
-  // Paint tasks → Animation dept (same as Roto in current org structure)
+  // Paint tasks → Paint dept
   if (sName === 'paint') {
-    if (dName === 'animation' || dName === 'production') {
-      return { valid: true };
-    }
-    return {
-      valid: false,
-      message: `Cannot assign Paint task to artist in '${deptName}' department. Expected Animation department.`
-    };
+    if (dName === 'paint') return { valid: true };
+    return { valid: false, message: `Cannot assign Paint task to artist in '${deptName}' department. Expected Paint department.` };
   }
 
-  // Comp tasks → Compositing dept
+  // Comp tasks → Comp dept
   if (sName === 'comp' || sName === 'compositing') {
-    if (dName === 'compositing' || dName === 'production') {
-      return { valid: true };
-    }
-    return {
-      valid: false,
-      message: `Cannot assign Comp task to artist in '${deptName}' department. Expected Compositing department.`
-    };
+    if (dName === 'comp') return { valid: true };
+    return { valid: false, message: `Cannot assign Comp task to artist in '${deptName}' department. Expected Comp department.` };
   }
 
-  // CG tasks → Not configured for this studio
+  // CG tasks → CG dept
   if (sName === 'cg') {
-    return {
-      valid: false,
-      message: `CG stage department mapping is not configured for this studio.`
-    };
+    if (dName === 'cg') return { valid: true };
+    return { valid: false, message: `Cannot assign CG task to artist in '${deptName}' department. Expected CG department.` };
   }
 
   // Unknown stage — allow with a warning (don't block unknown stages)
@@ -177,15 +159,16 @@ async function assignTask(req, res) {
     // 7. Duplicate Assignment Protection
     const checkAssignReq = new sql.Request(transaction);
     checkAssignReq.input('TaskId', sql.BigInt, parsedTaskId);
+    checkAssignReq.input('UserId', sql.BigInt, parsedUserId);
     const existingAssign = await checkAssignReq.query(`
-      SELECT AssignmentID, UserID FROM TaskAssignment WHERE TaskID = @TaskId
+      SELECT AssignmentID, UserID FROM TaskAssignment WHERE TaskID = @TaskId AND UserID = @UserId
     `);
 
     if (existingAssign.recordset.length > 0) {
       await transaction.rollback();
       return res.status(409).json({ 
         success: false, 
-        message: `Task ${parsedTaskId} is already assigned to User ${existingAssign.recordset[0].UserID}` 
+        message: `Task ${parsedTaskId} is already assigned to User ${parsedUserId}` 
       });
     }
 
@@ -276,6 +259,140 @@ async function assignTask(req, res) {
     }
     console.error('[assignTask] Transaction error:', err);
     return res.status(500).json({ success: false, message: 'Failed to assign task', error: err.message });
+  }
+}
+
+// 1B. PUT /api/assignments/:taskId/target - Adjust Target Bid without changing assignment
+async function adjustTarget(req, res) {
+  const { taskId } = req.params;
+  const { targetBid, targetHours, remarks } = req.body || {};
+
+  const parsedTaskId = parseInt(taskId, 10);
+  const parsedTargetHours = targetBid !== undefined && targetBid !== null && !isNaN(parseFloat(targetBid))
+    ? parseFloat(targetBid) * 8
+    : (parseFloat(targetHours) || 0);
+  const parsedTargetBid = parsedTargetHours / 8;
+
+  if (isNaN(parsedTaskId) || parsedTaskId <= 0) {
+    return res.status(400).json({ success: false, message: 'taskId must be a valid positive number' });
+  }
+  
+  if (parsedTargetHours < 0) {
+    return res.status(400).json({ success: false, message: 'Target hours cannot be negative' });
+  }
+
+  const assignedBy = req.user?.userId;
+  if (!assignedBy) {
+    return res.status(401).json({ success: false, message: 'Unauthenticated user' });
+  }
+
+  let pool;
+  let transaction;
+
+  try {
+    pool = await sql.connect(config);
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    // Verify TaskMaster exists and is active
+    const taskReq = new sql.Request(transaction);
+    taskReq.input('TaskId', sql.BigInt, parsedTaskId);
+    const taskResult = await taskReq.query(`
+      SELECT t.TaskID, t.TaskCode, t.EstimatedHours, t.DueDate, t.PriorityID, t.StatusID, t.IsActive, t.IsDeleted
+      FROM TaskMaster t
+      WHERE t.TaskID = @TaskId
+    `);
+
+    if (taskResult.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: `Task not found with ID ${parsedTaskId}` });
+    }
+
+    const task = taskResult.recordset[0];
+    if (task.IsActive === false || task.IsDeleted === true) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Cannot adjust target for an inactive or deleted task' });
+    }
+
+    // Verify there is an active assignment
+    const assignReq = new sql.Request(transaction);
+    assignReq.input('TaskId', sql.BigInt, parsedTaskId);
+    const assignResult = await assignReq.query(`
+      SELECT TOP 1 AssignmentID, UserID, TargetHours
+      FROM TaskAssignment 
+      WHERE TaskID = @TaskId
+      ORDER BY AssignmentID DESC
+    `);
+
+    if (assignResult.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Cannot adjust target: Task is not currently assigned to anyone' });
+    }
+
+    const currentAssignment = assignResult.recordset[0];
+
+    // Update TaskAssignment
+    const updateAssignReq = new sql.Request(transaction);
+    updateAssignReq.input('AssignmentID', sql.BigInt, currentAssignment.AssignmentID);
+    updateAssignReq.input('TargetHours', sql.Decimal(18, 2), parsedTargetHours);
+    updateAssignReq.input('Remarks', sql.VarChar(500), remarks || null);
+    
+    await updateAssignReq.query(`
+      UPDATE TaskAssignment
+      SET TargetHours = @TargetHours,
+          Remarks = ISNULL(@Remarks, Remarks)
+      WHERE AssignmentID = @AssignmentID
+    `);
+
+    // Insert into TaskAssignmentHistory as 'Adjust Target'
+    const insertHistReq = new sql.Request(transaction);
+    insertHistReq.input('TaskId', sql.BigInt, parsedTaskId);
+    insertHistReq.input('AssignedToUserID', sql.BigInt, currentAssignment.UserID);
+    insertHistReq.input('AssignedByUserID', sql.BigInt, assignedBy);
+    insertHistReq.input('AssignmentType', sql.NVarChar(50), 'Adjust Target');
+    insertHistReq.input('DueDate', sql.DateTime, task.DueDate || null);
+    insertHistReq.input('EstimatedHours', sql.Decimal(18, 2), task.EstimatedHours || null);
+    insertHistReq.input('PriorityID', sql.BigInt, task.PriorityID || null);
+    insertHistReq.input('StatusID', sql.BigInt, task.StatusID);
+    insertHistReq.input('Remarks', sql.NVarChar(1000), remarks || `Target adjusted to ${parsedTargetBid} Bid`);
+
+    await insertHistReq.query(`
+      INSERT INTO TaskAssignmentHistory (
+        TaskID, AssignedToUserID, AssignedByUserID, AssignmentType, 
+        AssignedDate, DueDate, EstimatedHours, PriorityID, StatusID, Remarks, CreatedOn
+      )
+      VALUES (
+        @TaskId, @AssignedToUserID, @AssignedByUserID, @AssignmentType, 
+        GETDATE(), @DueDate, @EstimatedHours, @PriorityID, @StatusID, @Remarks, GETDATE()
+      )
+    `);
+
+    // Log History
+    await logTaskHistory(transaction, parsedTaskId, task.StatusID, task.StatusID, assignedBy, `Target allocation adjusted to ${parsedTargetBid} Bid (${parsedTargetHours}h)`);
+
+    await transaction.commit();
+
+    return res.json({
+      success: true,
+      message: 'Target adjusted successfully',
+      adjustment: {
+        taskId: parsedTaskId,
+        userId: currentAssignment.UserID,
+        targetBid: parsedTargetBid,
+        targetHours: parsedTargetHours
+      }
+    });
+
+  } catch (err) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error('[adjustTarget] Rollback error:', rollbackErr);
+      }
+    }
+    console.error('[adjustTarget] Transaction error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to adjust target', error: err.message });
   }
 }
 
@@ -443,6 +560,7 @@ async function getEligibleArtists(req, res) {
 }
 
 router.post('/', secured(assignTask));
+router.put('/:taskId/target', secured(adjustTarget));
 router.get('/eligible-artists', securedReadOnly(getEligibleArtists));
 router.get('/history/:taskId', securedReadOnly(getAssignmentHistory));
 router.get('/workload/:artistId', securedReadOnly(getArtistWorkload));

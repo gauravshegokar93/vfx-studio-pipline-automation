@@ -585,8 +585,8 @@ async function updateUser(userId, data, currentUser) {
 // ==========================================
 
 async function getReportingLeads(query) {
-    const { departmentId, teamId } = query || {};
-    const leads = await userRepository.getReportingLeads({ departmentId, teamId });
+    const { departmentId, teamId, role } = query || {};
+    const leads = await userRepository.getReportingLeads({ departmentId, teamId, role });
     return leads.map(u => ({
         id: u.UserId,
         userId: u.UserId,
@@ -608,51 +608,54 @@ async function getReportingLeads(query) {
 async function getOrgHierarchy() {
     const { departments, teams, users } = await userRepository.getOrgHierarchy();
 
-    // Build hierarchy: dept → teams → users
-    // Uses LeadNames/LeadCount from new multi-lead query (no TOP 1).
+    const mapUser = u => ({
+        userId: u.UserId,
+        employeeCode: u.EmployeeCode,
+        fullName: u.FullName,
+        roleId: u.RoleId,
+        roleName: u.RoleName,
+        roleLevel: u.RoleLevel,
+        reportingManagerId: u.ReportingManagerId,
+        reportingManagerName: u.ReportingManagerName
+    });
+
+    const systemAdministration = users
+        .filter(u => u.RoleName === 'Super Admin')
+        .map(mapUser);
+
+    const projectManagement = users
+        .filter(u => u.RoleName === 'Project Manager')
+        .map(mapUser);
+
+    // Production Head (assuming one or more, but just listing them at the top)
+    const productionHeads = users
+        .filter(u => u.RoleName === 'Production Head')
+        .map(mapUser);
+
     const hierarchy = departments.map(dept => {
         const deptTeams = teams
             .filter(t => String(t.DepartmentId) === String(dept.DepartmentId))
             .map(team => {
                 const teamMembers = users
-                    .filter(u => String(u.HomeTeamId) === String(team.TeamId))
-                    .map(u => ({
-                        userId: u.UserId,
-                        employeeCode: u.EmployeeCode,
-                        fullName: u.FullName,
-                        roleId: u.RoleId,
-                        roleName: u.RoleName,
-                        roleLevel: u.RoleLevel,
-                        reportingManagerId: u.ReportingManagerId,
-                        reportingManagerName: u.ReportingManagerName
-                    }));
+                    .filter(u => String(u.HomeTeamId) === String(team.TeamId) && u.RoleName !== 'Project Manager' && u.RoleName !== 'Super Admin' && u.RoleName !== 'Production Head')
+                    .map(mapUser);
 
                 const leadCount = Number(team.LeadCount) || 0;
                 return {
                     teamId: team.TeamId,
                     teamName: team.TeamName,
                     teamCode: team.TeamCode,
-                    // leadNames: comma-separated list, null if no leads
                     leadNames: team.LeadNames || null,
                     leadIds: team.LeadIds || null,
                     leadCount,
-                    // Flag when multiple leads exist — UI must show all, not pick one
                     hasMultipleLeads: leadCount > 1,
                     members: teamMembers
                 };
             });
 
-        // Users in this dept but not assigned to any team
         const deptUsersNoTeam = users
-            .filter(u => String(u.HomeDepartmentId) === String(dept.DepartmentId) && !u.HomeTeamId)
-            .map(u => ({
-                userId: u.UserId,
-                employeeCode: u.EmployeeCode,
-                fullName: u.FullName,
-                roleId: u.RoleId,
-                roleName: u.RoleName,
-                roleLevel: u.RoleLevel
-            }));
+            .filter(u => String(u.HomeDepartmentId) === String(dept.DepartmentId) && !u.HomeTeamId && u.RoleName !== 'Project Manager' && u.RoleName !== 'Super Admin' && u.RoleName !== 'Production Head')
+            .map(mapUser);
 
         return {
             departmentId: dept.DepartmentId,
@@ -663,7 +666,12 @@ async function getOrgHierarchy() {
         };
     });
 
-    return { hierarchy };
+    return { 
+        systemAdministration,
+        projectManagement,
+        productionHeads,
+        hierarchy 
+    };
 }
 
 // ==========================================

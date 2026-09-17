@@ -1,8 +1,10 @@
 /**
  * API Configuration
- * Change API_BASE_URL to point to your SQL Server / Sequelize backend later.
+ * Proxy requests through Next.js rewrite to solve CORS and Cloudflare Tunnel domain issues.
  */
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+export const API_BASE_URL = typeof window !== 'undefined'
+  ? "/api"
+  : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api");
 
 export const ENDPOINTS = {
   AUTH: `${API_BASE_URL}/auth`,

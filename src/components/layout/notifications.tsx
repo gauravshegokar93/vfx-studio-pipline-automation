@@ -21,8 +21,22 @@ export function NotificationBell() {
   const router = useRouter();
 
   const fetchNotifications = async () => {
-    const unread = await notificationService.getUnread();
-    setNotifications(unread);
+    const fetched = await notificationService.getUnread();
+    setNotifications(fetched);
+  };
+
+  const handleOpenChange = async (isOpen: boolean) => {
+    setOpen(isOpen);
+    
+    // Mark all as read when popover is opened
+    if (isOpen) {
+      const unreadExists = notifications.some(n => !n.isRead);
+      if (unreadExists) {
+        // Optimistic UI update
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        await notificationService.markAllAsRead();
+      }
+    }
   };
 
   useEffect(() => {
@@ -32,27 +46,31 @@ export function NotificationBell() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleRead = async (id: string | number, referenceId?: string | number) => {
-    const success = await notificationService.markAsRead(id);
-    if (success) {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-      if (referenceId) {
-        setOpen(false);
-        router.push(`/tasks/${referenceId}`);
+  const handleRead = async (id: string | number, referenceId?: string | number, isRead?: boolean) => {
+    if (!isRead) {
+      const success = await notificationService.markAsRead(id);
+      if (success) {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
       }
+    }
+    if (referenceId) {
+      setOpen(false);
+      router.push(`/tasks/${referenceId}`);
     }
   };
 
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative hover:bg-sidebar-accent/80 group shrink-0 transition-all duration-200 hover:scale-105 active:scale-95">
           <Bell className="w-5 h-5 text-sidebar-foreground group-hover:text-white transition-colors" />
-          {notifications.length > 0 && (
+          {unreadCount > 0 && (
             <Badge 
               className="absolute -top-1 -right-1 px-1 min-w-[1.25rem] h-5 flex items-center justify-center bg-crimson text-white border-2 border-sidebar-background rounded-full animate-pulse-subtle"
             >
-              {notifications.length > 99 ? '99+' : notifications.length}
+              {unreadCount > 99 ? '99+' : unreadCount}
             </Badge>
           )}
         </Button>
@@ -60,9 +78,9 @@ export function NotificationBell() {
       <PopoverContent className="w-80 p-0 mr-4 mt-2 shadow-2xl border-sidebar-border" align="end">
         <div className="flex items-center justify-between p-4 border-b border-sidebar-border/50 bg-background/50">
           <h4 className="font-semibold leading-none tracking-tight">Notifications</h4>
-          {notifications.length > 0 && (
+          {unreadCount > 0 && (
             <Badge variant="secondary" className="bg-crimson/20 text-crimson">
-              {notifications.length} Unread
+              {unreadCount} Unread
             </Badge>
           )}
         </div>
@@ -77,19 +95,22 @@ export function NotificationBell() {
               {notifications.map((n) => (
                 <div 
                   key={n.id} 
-                  className="p-4 border-b border-sidebar-border/30 hover:bg-sidebar-accent/10 cursor-pointer transition-colors"
-                  onClick={() => handleRead(n.id, n.referenceId)}
+                  className={cn(
+                    "p-4 border-b border-sidebar-border/30 hover:bg-sidebar-accent/10 cursor-pointer transition-colors",
+                    !n.isRead && "bg-sidebar-accent/5"
+                  )}
+                  onClick={() => handleRead(n.id, n.referenceId, n.isRead)}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex flex-col gap-1 pr-2">
-                      <span className="text-sm font-medium leading-tight">{n.title}</span>
+                      <span className={cn("text-sm leading-tight", !n.isRead ? "font-semibold" : "font-medium text-muted-foreground")}>{n.title}</span>
                       <span className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                         {n.message}
                       </span>
                     </div>
-                    <div className="w-2 h-2 rounded-full bg-crimson shrink-0 mt-1" />
+                    {!n.isRead && <div className="w-2 h-2 rounded-full bg-crimson shrink-0 mt-1" />}
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-4 mt-2 block">
                     {formatDateTimeLocal(n.createdDate)}
                   </span>
                 </div>
@@ -101,3 +122,4 @@ export function NotificationBell() {
     </Popover>
   );
 }
+

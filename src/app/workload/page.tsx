@@ -72,6 +72,11 @@ export default function WorkloadPage() {
   const [remarks, setRemarks] = useState<string>('');
   const [submittingAssign, setSubmittingAssign] = useState<boolean>(false);
 
+  // Adjust Target Modal state
+  const [adjustModalOpen, setAdjustModalOpen] = useState<boolean>(false);
+  const [selectedTaskToAdjust, setSelectedTaskToAdjust] = useState<TaskItem | null>(null);
+  const [adjustingTarget, setAdjustingTarget] = useState<boolean>(false);
+
   // Master Data Loader
   const loadMasterData = useCallback(async () => {
     setLoading(true);
@@ -171,6 +176,34 @@ export default function WorkloadPage() {
       loadMasterData();
     } else {
       toast({ title: 'Assignment Failed', description: res.message, variant: 'destructive' });
+    }
+  };
+
+  const handleOpenAdjustModal = (task: TaskItem) => {
+    setSelectedTaskToAdjust(task);
+    setTargetBid(task.targetBid !== undefined && task.targetBid !== null ? task.targetBid : (task.targetHours ? task.targetHours / 8 : 0));
+    setRemarks('');
+    setAdjustModalOpen(true);
+  };
+
+  const handleConfirmAdjustTarget = async () => {
+    if (!selectedTaskToAdjust) return;
+    setAdjustingTarget(true);
+    try {
+      await taskService.adjustTarget(selectedTaskToAdjust.taskId, {
+        targetBid: targetBid,
+        remarks: remarks
+      });
+      toast({ title: 'Target Adjusted', description: `Target bid for ${selectedTaskToAdjust.taskCode} updated to ${targetBid} Bid.` });
+      setAdjustModalOpen(false);
+      loadMasterData();
+      if (selectedArtistItem) {
+        handleSelectArtist(selectedArtistItem);
+      }
+    } catch (err: any) {
+      toast({ title: 'Update Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setAdjustingTarget(false);
     }
   };
 
@@ -306,9 +339,13 @@ export default function WorkloadPage() {
                     <TableRow className="border-sidebar-border h-12">
                       <TableHead className="pl-6">Artist / Code</TableHead>
                       <TableHead>Department</TableHead>
-                      <TableHead className="text-center">Assigned / WIP</TableHead>
-                      <TableHead className="text-center">Review / Rework</TableHead>
-                      <TableHead className="text-center">Overdue</TableHead>
+                      <TableHead className="text-center">Active</TableHead>
+                      <TableHead className="text-center">In Progress</TableHead>
+                      <TableHead className="text-center" title="Total Review Submissions">Reviews</TableHead>
+                      <TableHead className="text-center" title="Total Rework Instances">Reworks</TableHead>
+                      <TableHead className="text-center">Completed</TableHead>
+                      <TableHead className="text-center text-crimson">Overdue</TableHead>
+                      <TableHead className="text-center">Complexity</TableHead>
                       <TableHead className="text-right">Target Bid</TableHead>
                       <TableHead className="text-right">Actual Bid</TableHead>
                       <TableHead className="text-right">Remaining Bid</TableHead>
@@ -338,25 +375,39 @@ export default function WorkloadPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-white text-xs">
-                            {artist.departmentName || 'Animation'}
+                            {artist.departmentName || 'CG'}
                           </TableCell>
                           <TableCell className="text-center text-xs font-mono">
-                            <span className="text-white font-bold">{item.taskCount}</span>
-                            <span className="text-muted-foreground text-[10px] ml-1">({item.inProgressCount} WIP)</span>
+                            <span className="text-white font-bold">{item.activeTaskCount}</span>
                           </TableCell>
-                          <TableCell className="text-center text-xs font-mono">
-                            <span className="text-amber-300 font-semibold">{item.reviewCount} Rev</span>
-                            <span className="text-muted-foreground text-[10px] mx-1">/</span>
-                            <span className="text-purple-400 font-semibold">{item.reworkCount} Rew</span>
+                          <TableCell className="text-center text-xs font-mono font-bold text-blue-400">
+                            {item.inProgressCount || '-'}
                           </TableCell>
-                          <TableCell className="text-center">
-                            {hasOverdue ? (
-                              <Badge className="bg-red-500/20 text-red-400 font-mono text-[10px] px-2 py-0.5">
-                                {item.overdueCount} Overdue
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-xs font-mono">-</span>
-                            )}
+                          <TableCell className="text-center text-xs font-mono font-bold text-amber-400">
+                            {item.reviewSubmissions || '-'}
+                          </TableCell>
+                          <TableCell className="text-center text-xs font-mono font-bold text-purple-400">
+                            {item.historicalReworkCount || '-'}
+                          </TableCell>
+                          <TableCell className="text-center text-xs font-mono font-bold text-green-400">
+                            {item.completedCount || '-'}
+                          </TableCell>
+                          <TableCell className="text-center text-xs font-mono font-bold text-red-500">
+                            {item.overdueCount || '-'}
+                          </TableCell>
+                          <TableCell className="text-center text-[10px] font-mono">
+                            {(() => {
+                              const comps = (item.taskComplexities || '').split(',').filter(Boolean);
+                              const counts = comps.reduce((acc: Record<string, number>, c: string) => {
+                                acc[c] = (acc[c] || 0) + 1;
+                                return acc;
+                              }, {});
+                              return Object.entries(counts).map(([comp, count], i) => (
+                                <span key={i} className="mr-1 text-muted-foreground border border-muted-foreground/30 px-1 rounded-sm" title={comp}>
+                                  {count}{comp.charAt(0).toUpperCase()}
+                                </span>
+                              ));
+                            })()}
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs text-yellow-400 font-bold">
                             {formattedBid(item.targetBid)}
@@ -378,7 +429,7 @@ export default function WorkloadPage() {
 
                     {workloads.length === 0 && !loading && (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
+                        <TableCell colSpan={10} className="text-center py-16 text-muted-foreground">
                           <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
                           <p className="text-base font-bold text-white mb-1">No Active Artists Found</p>
                           <p className="text-xs">No active artists match the selected department or search criteria.</p>
@@ -482,9 +533,19 @@ export default function WorkloadPage() {
                             </div>
                             <Badge className="text-[9px] uppercase bg-blue-500/20 text-blue-400">{t.status}</Badge>
                           </div>
-                          <div className="flex justify-between text-xs text-muted-foreground pt-1 border-t border-sidebar-border/40 font-mono">
-                            <span>Estimated: {formattedBid(t.estimatedBid !== undefined && t.estimatedBid !== null ? t.estimatedBid : (t.estimatedHours ? t.estimatedHours / 8 : 0))}</span>
-                            <span className="text-yellow-400 font-bold">Target: {formattedBid(t.targetBid !== undefined && t.targetBid !== null ? t.targetBid : (t.targetHours ? t.targetHours / 8 : 0))}</span>
+                          <div className="flex justify-between items-center pt-2 border-t border-sidebar-border/40 text-xs">
+                            <div className="flex flex-col gap-1 font-mono text-[10px]">
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                Est: {formattedBid(t.estimatedBid !== undefined && t.estimatedBid !== null ? t.estimatedBid : (t.estimatedHours ? t.estimatedHours / 8 : 0))}
+                                {(t.targetBid !== undefined && t.targetBid !== null ? t.targetBid : (t.targetHours ? t.targetHours / 8 : 0)) > (t.estimatedBid !== undefined && t.estimatedBid !== null ? t.estimatedBid : (t.estimatedHours ? t.estimatedHours / 8 : 0)) && (
+                                  <span title="Target exceeds Client Estimate"><AlertCircle className="w-3 h-3 text-red-500" /></span>
+                                )}
+                              </span>
+                              <span className="text-yellow-400 font-bold">Tgt: {formattedBid(t.targetBid !== undefined && t.targetBid !== null ? t.targetBid : (t.targetHours ? t.targetHours / 8 : 0))}</span>
+                            </div>
+                            <Button size="sm" variant="outline" className="h-6 text-[10px] border-sidebar-border hover:bg-yellow-500 hover:text-white transition-all px-2" onClick={() => handleOpenAdjustModal(t)}>
+                              Adjust Target
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -520,6 +581,20 @@ export default function WorkloadPage() {
                   <p className="text-muted-foreground uppercase font-bold text-[10px]">Shot / Stage</p>
                   <p className="text-white font-bold">{selectedTaskToAssign?.shotCode} — {selectedTaskToAssign?.stage}</p>
                 </div>
+                {selectedTaskToAssign?.complexity && (
+                  <div className="text-center">
+                    <p className="text-muted-foreground uppercase font-bold text-[10px]">Complexity</p>
+                    <Badge variant="outline" className={cn(
+                      "uppercase text-[10px] font-bold mt-0.5",
+                      selectedTaskToAssign.complexity.toLowerCase().includes('hard') ? "text-red-400 border-red-400/30 bg-red-400/10" :
+                      selectedTaskToAssign.complexity.toLowerCase().includes('mid') ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" :
+                      selectedTaskToAssign.complexity.toLowerCase().includes('easy') ? "text-green-400 border-green-400/30 bg-green-400/10" :
+                      "text-blue-400 border-blue-400/30 bg-blue-400/10"
+                    )}>
+                      {selectedTaskToAssign.complexity}
+                    </Badge>
+                  </div>
+                )}
                 <div className="text-right">
                   <p className="text-muted-foreground uppercase font-bold text-[10px]">Estimated Bid</p>
                   <p className="text-crimson font-mono font-bold">{formattedBid(selectedTaskToAssign ? (selectedTaskToAssign.estimatedBid !== undefined && selectedTaskToAssign.estimatedBid !== null ? selectedTaskToAssign.estimatedBid : (selectedTaskToAssign.estimatedHours ? selectedTaskToAssign.estimatedHours / 8 : 0)) : 0)}</p>
@@ -530,13 +605,16 @@ export default function WorkloadPage() {
                 <Label className="text-xs uppercase font-bold text-muted-foreground">Select Active Artist</Label>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
                   {activeArtistsList.map((artist) => {
-                    const isSelected = targetArtist?.userId === artist.userId || targetArtist?.id === artist.id;
+                    const isSelected = !!targetArtist && (
+                      (targetArtist.userId !== undefined && targetArtist.userId === artist.userId) ||
+                      (targetArtist.id !== undefined && targetArtist.id === artist.id)
+                    );
                     return (
                       <div
                         key={artist.userId || artist.id}
                         className={cn(
                           "p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between text-xs",
-                          isSelected ? "bg-crimson/20 border-crimson text-white" : "bg-sidebar-accent/40 border-sidebar-border text-muted-foreground hover:border-crimson/50"
+                          isSelected ? "bg-emerald-500/10 border-emerald-500 ring-1 ring-emerald-500 text-white" : "bg-sidebar-accent/40 border-sidebar-border text-muted-foreground hover:border-emerald-500/50"
                         )}
                         onClick={() => setTargetArtist(artist)}
                       >
@@ -544,9 +622,14 @@ export default function WorkloadPage() {
                           <p className="font-bold text-white">{artist.fullName}</p>
                           <p className="text-[10px] text-muted-foreground">{artist.employeeCode} • {artist.departmentName || 'Artist'}</p>
                         </div>
-                        <Button size="sm" variant={isSelected ? "default" : "ghost"} className={isSelected ? "bg-crimson text-white" : ""}>
-                          {isSelected ? 'Selected' : 'Select'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {isSelected && <span className="text-emerald-500 font-bold text-[10px] uppercase">Selected</span>}
+                          {isSelected ? (
+                            <CheckCircle className="w-5 h-5 text-emerald-500" />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full border border-sidebar-border" />
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -580,6 +663,98 @@ export default function WorkloadPage() {
               <Button variant="outline" className="flex-1" onClick={() => setAssignModalOpen(false)}>Cancel</Button>
               <Button className="bg-crimson hover:bg-crimson/90 flex-1 font-bold shadow-lg shadow-crimson/20" onClick={handleConfirmAssignment} disabled={submittingAssign}>
                 {submittingAssign ? 'Assigning...' : 'Confirm Assignment'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Adjust Target Modal */}
+        <Dialog open={adjustModalOpen} onOpenChange={setAdjustModalOpen}>
+          <DialogContent className="bg-sidebar border-sidebar-border text-white max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-headline flex items-center gap-3">
+                <Briefcase className="text-yellow-400" /> Adjust Target: {selectedTaskToAdjust?.taskCode}
+              </DialogTitle>
+              <DialogDescription className="hidden">Form to adjust target bid.</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              {/* Context Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Assigned Artist</p>
+                  <p className="text-white font-bold text-sm flex items-center gap-2 mt-1">
+                    <UserCircle className="w-4 h-4 text-blue-400" /> {selectedTaskToAdjust?.assignedArtist || selectedArtistItem?.artist.fullName}
+                  </p>
+                </div>
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Client Estimate</p>
+                  <p className="text-white font-mono font-bold text-sm mt-1">
+                    {formattedBid(selectedTaskToAdjust?.estimatedBid !== undefined && selectedTaskToAdjust?.estimatedBid !== null ? selectedTaskToAdjust.estimatedBid : (selectedTaskToAdjust?.estimatedHours ? selectedTaskToAdjust.estimatedHours / 8 : 0))}
+                  </p>
+                </div>
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Actual Logged</p>
+                  <p className="text-emerald-400 font-mono font-bold text-sm mt-1">
+                    {formattedBid(selectedTaskToAdjust?.actualHours ? selectedTaskToAdjust.actualHours / 8 : 0)}
+                  </p>
+                </div>
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Target Remaining</p>
+                  <p className="text-crimson font-mono font-bold text-sm mt-1">
+                    {formattedBid(Math.max(0, (selectedTaskToAdjust?.targetHours || 0) - (selectedTaskToAdjust?.actualHours || 0)) / 8)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning Area */}
+              {selectedTaskToAdjust && (
+                (() => {
+                  const estBid = selectedTaskToAdjust.estimatedBid !== undefined && selectedTaskToAdjust.estimatedBid !== null ? selectedTaskToAdjust.estimatedBid : (selectedTaskToAdjust.estimatedHours ? selectedTaskToAdjust.estimatedHours / 8 : 0);
+                  if (targetBid > estBid) {
+                    return (
+                      <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-lg flex items-center gap-3">
+                        <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                        <p className="text-xs text-red-400 font-medium">Warning: Target allocation ({targetBid.toFixed(2)} Bid) exceeds client estimate ({estBid.toFixed(2)} Bid).</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()
+              )}
+
+              {/* Input */}
+              <div className="space-y-3">
+                <Label className="text-xs uppercase font-bold text-muted-foreground">New Target Allocation (Bid)</Label>
+                <div className="relative">
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    min="0"
+                    value={targetBid} 
+                    onChange={(e) => setTargetBid(parseFloat(e.target.value) || 0)}
+                    className="bg-sidebar-accent/40 border-sidebar-border text-white text-lg font-mono py-6 pl-4 font-bold rounded-xl"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">Bid ({targetBid * 8} Hours)</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-xs uppercase font-bold text-muted-foreground">Remarks (Optional)</Label>
+                <textarea 
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="w-full bg-sidebar-accent/40 border-sidebar-border text-white text-sm p-3 rounded-xl min-h-[80px] focus:outline-none focus:ring-1 focus:ring-crimson resize-none"
+                  placeholder="Reason for adjustment..."
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="border-t border-sidebar-border pt-4 gap-2">
+              <Button variant="ghost" onClick={() => setAdjustModalOpen(false)} className="text-muted-foreground hover:text-white">Cancel</Button>
+              <Button onClick={handleConfirmAdjustTarget} disabled={adjustingTarget} className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-8">
+                {adjustingTarget ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Briefcase className="w-4 h-4 mr-2" />}
+                Save Adjustment
               </Button>
             </DialogFooter>
           </DialogContent>

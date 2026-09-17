@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatDateLocal } from '@/lib/formatTime';
 import { importService, ImportBatch, ImportRow } from '@/services/importService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 export default function BidSheetImportPage() {
     const { toast } = useToast();
@@ -422,7 +423,18 @@ export default function BidSheetImportPage() {
                                                             <TableCell>{row.FrameRange}</TableCell>
                                                             <TableCell className="max-w-[200px] truncate" title={row.SOW}>{row.SOW}</TableCell>
                                                             <TableCell>{row.Vendor}</TableCell>
-                                                            <TableCell>{row.Complexity}</TableCell>
+                                                            <TableCell>
+                                                                {row.Complexity ? (
+                                                                    <Badge variant="outline" className={cn(
+                                                                        "uppercase text-[10px] font-bold",
+                                                                        row.Complexity === 'Hard' ? "text-red-400 border-red-400/30 bg-red-400/10" :
+                                                                        row.Complexity === 'Mid' ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" :
+                                                                        "text-green-400 border-green-400/30 bg-green-400/10"
+                                                                    )}>
+                                                                        {row.Complexity}
+                                                                    </Badge>
+                                                                ) : '-'}
+                                                            </TableCell>
                                                             <TableCell>{row.RotoBid}</TableCell>
                                                             <TableCell>{row.PaintBid}</TableCell>
                                                             <TableCell>{row.CompBid}</TableCell>

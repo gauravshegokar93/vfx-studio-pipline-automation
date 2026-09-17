@@ -53,6 +53,13 @@ apiClient.interceptors.request.use((config) => {
 // Single refresh promise queue management
 let isRefreshing = false;
 let refreshSubscribers: ((token: string) => void)[] = [];
+let activeRefreshToken: string | null = null;
+
+export function clearAuthInterceptorState() {
+  isRefreshing = false;
+  refreshSubscribers = [];
+  activeRefreshToken = null;
+}
 
 function subscribeTokenRefresh(cb: (token: string) => void) {
   refreshSubscribers.push(cb);
@@ -94,8 +101,6 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       if (!isRefreshing) {
-        isRefreshing = true;
-
         let refreshToken: string | null = null;
         if (typeof window !== 'undefined') {
           const sessionStr = localStorage.getItem('vfx-auth-session');
@@ -110,10 +115,13 @@ apiClient.interceptors.response.use(
         }
 
         if (!refreshToken) {
-          isRefreshing = false;
+          clearAuthInterceptorState();
           handleAuthFailure();
           return Promise.reject(error);
         }
+
+        isRefreshing = true;
+        activeRefreshToken = refreshToken;
 
         try {
           // Call existing refresh endpoint directly via base axios to bypass interceptors
@@ -124,6 +132,33 @@ apiClient.interceptors.response.use(
           if (refreshRes.data?.success && refreshRes.data?.accessToken) {
             const newAccessToken = refreshRes.data.accessToken;
             const newRefreshToken = refreshRes.data.refreshToken || refreshToken;
+
+            // PREVENT HIJACKING: check if session is still the one we refreshed
+            let validSession = false;
+            if (typeof window !== 'undefined') {
+              const currentSessionStr = localStorage.getItem('vfx-auth-session');
+              if (currentSessionStr) {
+                try {
+                  const currentSession = JSON.parse(currentSessionStr);
+                  if (currentSession.refreshToken === activeRefreshToken) {
+                    validSession = true;
+                    currentSession.token = newAccessToken;
+                    currentSession.refreshToken = newRefreshToken;
+                    if (refreshRes.data.user) {
+                      currentSession.user = refreshRes.data.user;
+                    }
+                    localStorage.setItem('vfx-auth-session', JSON.stringify(currentSession));
+                  }
+                } catch {
+                  // ignore storage errors
+                }
+              }
+            }
+
+            if (!validSession) {
+              clearAuthInterceptorState();
+              return Promise.reject(new Error('Session changed or user logged out during refresh'));
+            }
 
             // Update Zustand store
             try {
@@ -137,25 +172,7 @@ apiClient.interceptors.response.use(
               // ignore store errors
             }
 
-            // Update localStorage session
-            if (typeof window !== 'undefined') {
-              const sessionStr = localStorage.getItem('vfx-auth-session');
-              if (sessionStr) {
-                try {
-                  const session = JSON.parse(sessionStr);
-                  session.token = newAccessToken;
-                  session.refreshToken = newRefreshToken;
-                  if (refreshRes.data.user) {
-                    session.user = refreshRes.data.user;
-                  }
-                  localStorage.setItem('vfx-auth-session', JSON.stringify(session));
-                } catch {
-                  // ignore storage errors
-                }
-              }
-            }
-
-            isRefreshing = false;
+            clearAuthInterceptorState();
             onRefreshed(newAccessToken);
 
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
@@ -164,8 +181,7 @@ apiClient.interceptors.response.use(
             throw new Error('Refresh endpoint returned failure status');
           }
         } catch (refreshErr) {
-          isRefreshing = false;
-          refreshSubscribers = [];
+          clearAuthInterceptorState();
           handleAuthFailure();
           return Promise.reject(refreshErr);
         }

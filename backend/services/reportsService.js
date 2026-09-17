@@ -495,42 +495,125 @@ async function getArtistWorkloadReport({ departmentId, searchQuery } = {}) {
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const query = `
+    WITH ArtistBase AS (
+      SELECT 
+        u.UserId,
+        u.FullName,
+        u.EmployeeCode,
+        u.Email,
+        u.HomeDepartmentId,
+        ISNULL(d.DepartmentName, 'Animation') AS DepartmentName
+      FROM UserMaster u
+      LEFT JOIN RoleMaster r ON u.RoleId = r.RoleId
+      LEFT JOIN DepartmentMaster d ON u.HomeDepartmentId = d.DepartmentId
+      ${whereSql}
+    ),
+    CurrentTaskStats AS (
+      SELECT 
+        ta.UserID,
+        COUNT(DISTINCT ta.TaskID) AS AssignedTaskCount,
+        SUM(CASE WHEN (t.IsActive = 1 OR t.IsActive IS NULL) AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL) AND t.StatusID != 4 THEN 1 ELSE 0 END) AS ActiveTaskCount,
+        SUM(CASE WHEN (t.IsActive = 1 OR t.IsActive IS NULL) AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL) AND t.StatusID = 1 THEN 1 ELSE 0 END) AS AssignedCount,
+        SUM(CASE WHEN (t.IsActive = 1 OR t.IsActive IS NULL) AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL) AND t.StatusID = 2 THEN 1 ELSE 0 END) AS InProgressCount,
+        SUM(CASE WHEN (t.IsActive = 1 OR t.IsActive IS NULL) AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL) AND t.StatusID = 3 THEN 1 ELSE 0 END) AS ReviewCount,
+        SUM(CASE WHEN (t.IsActive = 1 OR t.IsActive IS NULL) AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL) AND t.StatusID = 5 THEN 1 ELSE 0 END) AS ReworkCount,
+        SUM(CASE WHEN (t.IsActive = 1 OR t.IsActive IS NULL) AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL) AND t.DueDate < GETDATE() AND (t.StatusID IS NULL OR t.StatusID != 4) THEN 1 ELSE 0 END) AS OverdueCount,
+        SUM(ta.TargetHours) AS TargetHours
+      FROM TaskAssignment ta
+      INNER JOIN TaskMaster t ON ta.TaskID = t.TaskID
+      GROUP BY ta.UserID
+    ),
+    CompletedTaskStats AS (
+      SELECT 
+        ta.UserID,
+        COUNT(DISTINCT ta.TaskID) AS CompletedCount
+      FROM TaskAssignment ta
+      INNER JOIN TaskMaster t ON ta.TaskID = t.TaskID
+      WHERE t.StatusID = 4 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
+      GROUP BY ta.UserID
+    ),
+    ReviewStats AS (
+      SELECT 
+        ta.UserID,
+        COUNT(tr.ReviewID) AS ReviewSubmissions
+      FROM TaskReview tr
+      INNER JOIN TaskAssignment ta ON tr.TaskID = ta.TaskID
+      GROUP BY ta.UserID
+    ),
+    ReworkStats AS (
+      SELECT 
+        rw.AssignedToUserID AS UserID,
+        COUNT(rw.ReworkID) AS ReworkCount
+      FROM TaskRework rw
+      GROUP BY rw.AssignedToUserID
+    ),
+    TimeLogStats AS (
+      SELECT 
+        ta.UserID,
+        SUM(
+          CASE 
+            WHEN tl.EndTime IS NOT NULL THEN tl.HoursWorked
+            ELSE DATEDIFF(SECOND, tl.StartTime, GETDATE()) / 3600.0
+          END
+        ) AS ActualWorkedHours
+      FROM TimeLog tl
+      INNER JOIN TaskAssignment ta ON tl.TaskID = ta.TaskID
+      GROUP BY ta.UserID
+    ),
+    ComplexityStats AS (
+      SELECT 
+        ta.UserID,
+        STRING_AGG(ISNULL(c.Complexity, 'Unknown'), ',') AS taskComplexities
+      FROM TaskMaster t2
+      JOIN TaskAssignment ta ON t2.TaskID = ta.TaskID
+      OUTER APPLY (
+          SELECT TOP 1 ibr.Complexity 
+          FROM ImportBatchRow ibr 
+          JOIN ImportBatch ib ON ib.ImportBatchID = ibr.ImportBatchID 
+          JOIN ShotMaster sm2 ON sm2.ShotId = t2.ShotID 
+          JOIN SequenceMaster sq2 ON sm2.SequenceId = sq2.SequenceId 
+          JOIN ReelMaster rm2 ON sq2.ReelId = rm2.ReelId 
+          JOIN ProjectMaster pm2 ON rm2.ProjectId = pm2.ProjectId 
+          WHERE ib.ProjectID = pm2.ProjectId 
+          AND (ibr.ShotName = sm2.ShotCode OR ibr.ClientShotName = sm2.ShotCode) 
+          AND (ibr.Episode = sq2.SequenceCode OR ibr.Episode = rm2.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
+          AND ib.ImportStatus = 'APPROVED'
+          ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
+      ) c
+      WHERE (t2.IsActive = 1 OR t2.IsActive IS NULL) 
+      AND (t2.IsDeleted = 0 OR t2.IsDeleted IS NULL)
+      AND t2.StatusID != 4
+      GROUP BY ta.UserID
+    )
     SELECT 
-      u.UserId AS userId,
-      u.UserId AS id,
-      u.FullName AS fullName,
-      u.EmployeeCode AS employeeCode,
-      u.Email AS email,
-      u.HomeDepartmentId AS departmentId,
-      ISNULL(d.DepartmentName, 'Animation') AS departmentName,
-      COUNT(DISTINCT ta.TaskID) AS assignedTaskCount,
-      SUM(CASE WHEN t.TaskID IS NOT NULL AND t.StatusID != 4 THEN 1 ELSE 0 END) AS activeTaskCount,
-      SUM(CASE WHEN t.TaskID IS NOT NULL AND t.StatusID = 1 THEN 1 ELSE 0 END) AS assignedCount,
-      SUM(CASE WHEN t.TaskID IS NOT NULL AND t.StatusID = 2 THEN 1 ELSE 0 END) AS inProgressCount,
-      SUM(CASE WHEN t.TaskID IS NOT NULL AND t.StatusID = 3 THEN 1 ELSE 0 END) AS reviewCount,
-      SUM(CASE WHEN t.TaskID IS NOT NULL AND t.StatusID = 5 THEN 1 ELSE 0 END) AS reworkCount,
-      SUM(CASE WHEN t.TaskID IS NOT NULL AND t.StatusID = 4 THEN 1 ELSE 0 END) AS completedCount,
-      SUM(CASE WHEN t.TaskID IS NOT NULL AND t.DueDate < GETDATE() AND (t.StatusID IS NULL OR t.StatusID != 4) THEN 1 ELSE 0 END) AS overdueCount,
-      COALESCE(SUM(ta.TargetHours), 0) AS targetHours,
-      COALESCE(SUM(tl.actualWorkedHours), 0) AS actualHours
-    FROM UserMaster u
-    LEFT JOIN RoleMaster r ON u.RoleId = r.RoleId
-    LEFT JOIN DepartmentMaster d ON u.HomeDepartmentId = d.DepartmentId
-    LEFT JOIN TaskAssignment ta ON u.UserId = ta.UserID
-    LEFT JOIN TaskMaster t ON ta.TaskID = t.TaskID AND (t.IsActive = 1 OR t.IsActive IS NULL) AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
-    LEFT JOIN (
-      SELECT TaskID, SUM(
-        CASE 
-          WHEN EndTime IS NOT NULL THEN HoursWorked
-          ELSE DATEDIFF(SECOND, StartTime, GETDATE()) / 3600.0
-        END
-      ) AS actualWorkedHours
-      FROM TimeLog
-      GROUP BY TaskID
-    ) tl ON t.TaskID = tl.TaskID
-    ${whereSql}
-    GROUP BY u.UserId, u.FullName, u.EmployeeCode, u.Email, u.HomeDepartmentId, d.DepartmentName
-    ORDER BY u.FullName ASC;
+      a.UserId AS userId,
+      a.UserId AS id,
+      a.FullName AS fullName,
+      a.EmployeeCode AS employeeCode,
+      a.Email AS email,
+      a.HomeDepartmentId AS departmentId,
+      a.DepartmentName AS departmentName,
+      ISNULL(c.AssignedTaskCount, 0) AS assignedTaskCount,
+      ISNULL(c.ActiveTaskCount, 0) AS activeTaskCount,
+      ISNULL(c.AssignedCount, 0) AS assignedCount,
+      ISNULL(c.InProgressCount, 0) AS inProgressCount,
+      ISNULL(c.ReviewCount, 0) AS reviewCount,
+      ISNULL(c.ReworkCount, 0) AS reworkCount,
+      ISNULL(comp.CompletedCount, 0) AS completedCount,
+      ISNULL(c.OverdueCount, 0) AS overdueCount,
+      ISNULL(rev.ReviewSubmissions, 0) AS historicalReviewSubmissions,
+      ISNULL(rew.ReworkCount, 0) AS historicalReworkCount,
+      ISNULL(cs.taskComplexities, '') AS taskComplexities,
+      ISNULL(c.TargetHours, 0) AS targetHours,
+      ISNULL(tl.ActualWorkedHours, 0) AS actualHours
+    FROM ArtistBase a
+    LEFT JOIN CurrentTaskStats c ON a.UserId = c.UserID
+    LEFT JOIN CompletedTaskStats comp ON a.UserId = comp.UserID
+    LEFT JOIN ReviewStats rev ON a.UserId = rev.UserID
+    LEFT JOIN ReworkStats rew ON a.UserId = rew.UserID
+    LEFT JOIN TimeLogStats tl ON a.UserId = tl.UserID
+    LEFT JOIN ComplexityStats cs ON a.UserId = cs.UserID
+    ORDER BY a.FullName ASC;
   `;
 
   const result = await request.query(query);
@@ -539,7 +622,7 @@ async function getArtistWorkloadReport({ departmentId, searchQuery } = {}) {
   const items = rows.map(r => {
     const tgtBid = Number(((r.targetHours || 0) / 8.0).toFixed(2));
     const actBid = Number(((r.actualHours || 0) / 8.0).toFixed(2));
-    const remBid = Number((tgtBid - actBid).toFixed(2));
+    const remBid = Math.max(0, Number((tgtBid - actBid).toFixed(2)));
 
     return {
       artist: {
@@ -560,6 +643,9 @@ async function getArtistWorkloadReport({ departmentId, searchQuery } = {}) {
       reworkCount: r.reworkCount || 0,
       completedCount: r.completedCount || 0,
       overdueCount: r.overdueCount || 0,
+      reviewSubmissions: r.historicalReviewSubmissions || 0,
+      historicalReworkCount: r.historicalReworkCount || 0,
+      taskComplexities: r.taskComplexities || '',
       allocatedBids: tgtBid,
       targetBid: tgtBid,
       actualBid: actBid,
@@ -662,7 +748,7 @@ async function getOverdueTasksReport({ projectId, stageId } = {}) {
 /**
  * Studio Analytics Report (Consolidated Executive Intelligence Hub)
  */
-async function getAnalyticsReport({ projectId, stageId, artistId, dateRange, startDate, endDate } = {}) {
+async function getAnalyticsReport({ projectId, stageId, artistId, dateRange, startDate, endDate, complexity } = {}) {
   const pool = await sql.connect(config);
 
   let startD = null;
@@ -690,6 +776,7 @@ async function getAnalyticsReport({ projectId, stageId, artistId, dateRange, sta
   const hasProjectFilter = projectId && projectId !== 'all';
   const hasStageFilter = stageId && stageId !== 'all';
   const hasArtistFilter = artistId && artistId !== 'all';
+  const hasComplexityFilter = complexity && complexity !== 'all';
   const hasDateFilter = startD && endD && !isNaN(startD.getTime()) && !isNaN(endD.getTime());
 
   const createReq = () => {
@@ -697,6 +784,7 @@ async function getAnalyticsReport({ projectId, stageId, artistId, dateRange, sta
     if (hasProjectFilter) r.input('ProjectId', sql.BigInt, projectId);
     if (hasStageFilter) r.input('StageId', sql.BigInt, parseInt(stageId, 10));
     if (hasArtistFilter) r.input('ArtistId', sql.BigInt, parseInt(artistId, 10));
+    if (hasComplexityFilter) r.input('Complexity', sql.VarChar, complexity);
     if (hasDateFilter) {
       r.input('StartDate', sql.DateTime2, startD);
       r.input('EndDate', sql.DateTime2, endD);
@@ -726,12 +814,35 @@ async function getAnalyticsReport({ projectId, stageId, artistId, dateRange, sta
     ORDER BY u.FullName ASC
   `);
 
+  const complexitiesRes = await pool.request().query(`
+    SELECT DISTINCT Complexity AS complexity
+    FROM ImportBatchRow
+    WHERE Complexity IS NOT NULL AND Complexity != ''
+    ORDER BY Complexity ASC
+  `);
+
   // Where clause builders
   const tWhere = ['(t.IsActive = 1 OR t.IsActive IS NULL)', '(t.IsDeleted = 0 OR t.IsDeleted IS NULL)'];
   if (hasProjectFilter) tWhere.push('pm.ProjectId = @ProjectId');
   if (hasStageFilter) tWhere.push('t.WorkflowStageID = @StageId');
   if (hasArtistFilter) tWhere.push('ta.UserID = @ArtistId');
   if (hasDateFilter) tWhere.push('t.CreatedDate >= @StartDate AND t.CreatedDate <= @EndDate');
+  if (hasComplexityFilter) {
+    tWhere.push(`(
+      SELECT TOP 1 ibr.Complexity 
+      FROM ImportBatchRow ibr 
+      JOIN ImportBatch ib ON ib.ImportBatchID = ibr.ImportBatchID 
+      JOIN ShotMaster sm2 ON sm2.ShotId = t.ShotID 
+      JOIN SequenceMaster sq2 ON sm2.SequenceId = sq2.SequenceId 
+      JOIN ReelMaster rm2 ON sq2.ReelId = rm2.ReelId 
+      JOIN ProjectMaster pm2 ON rm2.ProjectId = pm2.ProjectId 
+      WHERE ib.ProjectID = pm2.ProjectId 
+      AND (ibr.ShotName = sm2.ShotCode OR ibr.ClientShotName = sm2.ShotCode) 
+      AND (ibr.Episode = sq2.SequenceCode OR ibr.Episode = rm2.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
+      AND ib.ImportStatus = 'APPROVED'
+      ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
+    ) = @Complexity`);
+  }
   const tWhereSql = tWhere.length ? `WHERE ${tWhere.join(' AND ')}` : '';
 
   // 2. KPI Summary query
@@ -1057,6 +1168,47 @@ async function getAnalyticsReport({ projectId, stageId, artistId, dateRange, sta
       t.TaskID DESC
   `);
 
+  // 10. Complexity Analytics
+  const compReq = createReq();
+  const compRes = await compReq.query(`
+    SELECT 
+      ISNULL(c.Complexity, 'Unknown') AS complexity,
+      COUNT(t.TaskID) AS taskVolume,
+      SUM(CASE WHEN t.DueDate < GETDATE() AND (t.StatusID IS NULL OR t.StatusID != 4) THEN 1 ELSE 0 END) AS overdueCount,
+      SUM(CASE WHEN t.StatusID = 4 THEN 1 ELSE 0 END) AS completedCount,
+      SUM(CASE WHEN t.StatusID = 5 THEN 1 ELSE 0 END) AS reworkCount,
+      COALESCE(SUM(tl.actualWorkedHours), 0) AS actualHours,
+      COALESCE(SUM(t.EstimatedHours), 0) AS estimatedHours
+    FROM TaskMaster t
+    LEFT JOIN TaskAssignment ta ON t.TaskID = ta.TaskID
+    LEFT JOIN ShotMaster sm ON t.ShotID = sm.ShotId
+    LEFT JOIN SequenceMaster seq ON sm.SequenceId = seq.SequenceId
+    LEFT JOIN ReelMaster r ON seq.ReelId = r.ReelId
+    LEFT JOIN ProjectMaster pm ON r.ProjectId = pm.ProjectId
+    OUTER APPLY (
+        SELECT TOP 1 ibr.Complexity 
+        FROM ImportBatchRow ibr 
+        JOIN ImportBatch ib ON ib.ImportBatchID = ibr.ImportBatchID 
+        WHERE ib.ProjectID = pm.ProjectId 
+        AND (ibr.ShotName = sm.ShotCode OR ibr.ClientShotName = sm.ShotCode) 
+        AND (ibr.Episode = seq.SequenceCode OR ibr.Episode = r.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
+        AND ib.ImportStatus = 'APPROVED'
+        ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
+    ) c
+    LEFT JOIN (
+      SELECT TaskID, SUM(
+        CASE 
+          WHEN EndTime IS NOT NULL THEN HoursWorked
+          ELSE DATEDIFF(SECOND, StartTime, GETDATE()) / 3600.0
+        END
+      ) AS actualWorkedHours
+      FROM TimeLog
+      GROUP BY TaskID
+    ) tl ON t.TaskID = tl.TaskID
+    ${tWhereSql}
+    GROUP BY c.Complexity
+  `);
+
   // Format Results
   const kpiRow = kpiRes.recordset?.[0] || {};
   const totalEstBid = Number(((kpiRow.totalEstimatedHours || 0) / 8.0).toFixed(2));
@@ -1224,7 +1376,8 @@ async function getAnalyticsReport({ projectId, stageId, artistId, dateRange, sta
     options: {
       projects: projectsRes.recordset || [],
       stages: stagesRes.recordset || [],
-      artists: artistsRes.recordset || []
+      artists: artistsRes.recordset || [],
+      complexities: (complexitiesRes.recordset || []).map(r => r.complexity)
     },
     kpis,
     taskStatusDistribution,
@@ -1238,7 +1391,8 @@ async function getAnalyticsReport({ projectId, stageId, artistId, dateRange, sta
     productionTrend,
     reviewAnalytics,
     overdueAnalytics,
-    attentionRequired
+    attentionRequired,
+    complexityAnalytics: compRes.recordset || []
   };
 }
 
