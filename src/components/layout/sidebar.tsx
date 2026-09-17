@@ -106,8 +106,8 @@ export function AppSidebar() {
       {/* Top Logo */}
       <div className="p-5 flex items-center justify-between border-b border-sidebar-border/40">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-crimson rounded-md flex items-center justify-center shadow-md">
-            <Layers className="text-white w-5 h-5" />
+          <div className="w-8 h-8 bg-sidebar-accent rounded-md flex items-center justify-center shadow-md overflow-hidden p-1">
+            <img src="/favicon.ico" alt="SM Rolling FX Logo" className="w-full h-full object-contain" />
           </div>
           <span className="font-headline text-base tracking-tight text-white uppercase font-bold">
             SM ROLLING FX

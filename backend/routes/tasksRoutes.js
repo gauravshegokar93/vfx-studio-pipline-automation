@@ -6,7 +6,11 @@ const { sql, config } = require('../config/db');
 const { logTaskHistory, logTaskAssignmentHistory, createNotification } = require('../utils/historyHelper');
 
 function secured(handler) {
-  return authMiddleware(['Super Admin', 'Admin', 'Production Head', 'Department Supervisor', 'Lead', 'Artist'], handler);
+  return authMiddleware(['Super Admin', 'Admin', 'Production Head', 'Project Manager', 'Team Lead', 'Artist', 'QC Artist'], handler);
+}
+
+function securedProduction(handler) {
+  return authMiddleware(['Super Admin', 'Production Head', 'Team Lead'], handler);
 }
 
 // 1. GET /api/tasks - List all active tasks from TaskMaster
@@ -105,7 +109,17 @@ async function listTasks(req, res) {
         ROUND(ISNULL(tl.actualHours, 0) / 8.0, 2) AS actualBid,
         (ISNULL(tl.actualHours, 0) * 60) AS actualMinutes,
         ROUND((ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) / 8.0, 2) AS remainingBid,
-        (ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) AS remainingHours
+        (ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) AS remainingHours,
+          (
+            SELECT TOP 1 ibr.Complexity 
+            FROM ImportBatchRow ibr 
+            JOIN ImportBatch ib ON ib.ImportBatchID = ibr.ImportBatchID 
+            WHERE ib.ProjectID = pm.ProjectId
+            AND (ibr.ShotName = s.ShotCode OR ibr.ClientShotName = s.ShotCode)
+            AND (ibr.Episode = seq.SequenceCode OR ibr.Episode = r.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
+            AND ib.ImportStatus = 'APPROVED'
+            ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
+          ) AS complexity
       FROM TaskMaster t
       INNER JOIN ShotMaster s ON t.ShotID = s.ShotId
       LEFT JOIN SequenceMaster seq ON s.SequenceId = seq.SequenceId
@@ -219,7 +233,17 @@ async function getDepartmentQueue(req, res) {
         ISNULL(st.StatusName, 'Unassigned') AS status,
         t.StatusID AS statusId,
         u.FullName AS assignedArtist,
-        ta.UserID AS assignedArtistId
+        ta.UserID AS assignedArtistId,
+          (
+            SELECT TOP 1 ibr.Complexity 
+            FROM ImportBatchRow ibr 
+            JOIN ImportBatch ib ON ib.ImportBatchID = ibr.ImportBatchID 
+            WHERE ib.ProjectID = pm.ProjectId
+            AND (ibr.ShotName = s.ShotCode OR ibr.ClientShotName = s.ShotCode)
+            AND (ibr.Episode = seq.SequenceCode OR ibr.Episode = r.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
+            AND ib.ImportStatus = 'APPROVED'
+            ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
+          ) AS complexity
       FROM TaskMaster t
       INNER JOIN ShotMaster s ON t.ShotID = s.ShotId
       LEFT JOIN SequenceMaster seq ON s.SequenceId = seq.SequenceId
@@ -295,7 +319,17 @@ async function getArtistTasks(req, res) {
         ISNULL(st.StatusName, 'Assigned') AS status,
         t.StatusID AS statusId,
         ta.AssignedDate AS assignedDate,
-        ta.Remarks AS remarks
+        ta.Remarks AS remarks,
+          (
+            SELECT TOP 1 ibr.Complexity 
+            FROM ImportBatchRow ibr 
+            JOIN ImportBatch ib ON ib.ImportBatchID = ibr.ImportBatchID 
+            WHERE ib.ProjectID = pm.ProjectId
+            AND (ibr.ShotName = s.ShotCode OR ibr.ClientShotName = s.ShotCode)
+            AND (ibr.Episode = seq.SequenceCode OR ibr.Episode = r.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
+            AND ib.ImportStatus = 'APPROVED'
+            ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
+          ) AS complexity
       FROM TaskAssignment ta
       INNER JOIN TaskMaster t ON ta.TaskID = t.TaskID
       INNER JOIN ShotMaster s ON t.ShotID = s.ShotId
@@ -374,7 +408,17 @@ async function getTaskById(req, res) {
         ROUND(ISNULL(tl.actualHours, 0) / 8.0, 2) AS actualBid,
         (ISNULL(tl.actualHours, 0) * 60) AS actualMinutes,
         ROUND((ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) / 8.0, 2) AS remainingBid,
-        (ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) AS remainingHours
+        (ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) AS remainingHours,
+          (
+            SELECT TOP 1 ibr.Complexity 
+            FROM ImportBatchRow ibr 
+            JOIN ImportBatch ib ON ib.ImportBatchID = ibr.ImportBatchID 
+            WHERE ib.ProjectID = pm.ProjectId
+            AND (ibr.ShotName = s.ShotCode OR ibr.ClientShotName = s.ShotCode)
+            AND (ibr.Episode = seq.SequenceCode OR ibr.Episode = r.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
+            AND ib.ImportStatus = 'APPROVED'
+            ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
+          ) AS complexity
       FROM TaskMaster t
       INNER JOIN ShotMaster s ON t.ShotID = s.ShotId
       LEFT JOIN SequenceMaster seq ON s.SequenceId = seq.SequenceId
@@ -578,11 +622,118 @@ async function getTaskTimeline(req, res) {
   }
 }
 
+async function reopenForClientRevision(req, res) {
+  try {
+    const taskId = parseInt(req.params.id, 10);
+    const authUserId = parseInt(req.user?.userId, 10);
+
+    if (isNaN(taskId) || taskId <= 0) {
+      return res.status(400).json({ error: 'INVALID_TASK_ID', message: 'Task ID must be a positive integer.' });
+    }
+    if (isNaN(authUserId) || authUserId <= 0) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid authenticated user.' });
+    }
+
+    const pool = await sql.connect(config);
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // 1. Lock and validate TaskMaster
+      const taskReq = new sql.Request(transaction);
+      taskReq.input('TaskId', sql.BigInt, taskId);
+      const taskRes = await taskReq.query(`
+        SELECT t.TaskID, t.StatusID, t.TaskCode, ta.UserID AS AssignedToUserID, ta.AssignedBy AS AssignedByUserID
+        FROM TaskMaster t WITH (UPDLOCK, HOLDLOCK)
+        LEFT JOIN TaskAssignment ta ON t.TaskID = ta.TaskID
+        WHERE t.TaskID = @TaskId AND t.IsActive = 1 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
+      `);
+
+      if (!taskRes.recordset || taskRes.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'TASK_NOT_FOUND', message: `Task ${taskId} not found.` });
+      }
+
+      const task = taskRes.recordset[0];
+      if (parseInt(task.StatusID, 10) !== 4) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'INVALID_STATUS', message: 'Task must be in Completed status to reopen for client revision.' });
+      }
+
+      // 2. Fetch NextRound from TaskRework
+      const roundReq = new sql.Request(transaction);
+      roundReq.input('TaskId', sql.BigInt, taskId);
+      const roundRes = await roundReq.query(`
+        SELECT ISNULL(MAX(ReworkRound), 0) + 1 AS NextRound FROM TaskRework WHERE TaskID = @TaskId
+      `);
+      const nextRound = roundRes.recordset[0].NextRound;
+
+      // 3. Insert TaskRework record
+      const insertRewReq = new sql.Request(transaction);
+      insertRewReq.input('TaskId', sql.BigInt, taskId);
+      insertRewReq.input('RequestedBy', sql.BigInt, authUserId);
+      insertRewReq.input('Reason', sql.VarChar(500), 'Client Revision');
+      insertRewReq.input('AssignedToUserID', sql.BigInt, task.AssignedToUserID || authUserId);
+      insertRewReq.input('AssignedByUserID', sql.BigInt, task.AssignedByUserID || authUserId);
+      insertRewReq.input('ReworkRound', sql.Int, nextRound);
+      insertRewReq.input('PreviousWorkedMinutes', sql.Int, 0);
+      insertRewReq.input('TotalWorkedMinutes', sql.Int, 0);
+      insertRewReq.input('CreatedBy', sql.BigInt, authUserId);
+
+      await insertRewReq.query(`
+        INSERT INTO TaskRework (
+          TaskID, RequestedBy, RequestedDate, Reason, StatusID, ReviewID,
+          AssignedToUserID, AssignedByUserID, ReworkRound,
+          PreviousWorkedMinutes, AdditionalWorkedMinutes, TotalWorkedMinutes,
+          ReviewerRemarks, IsCompleted, CreatedBy, CreatedDate, IsDeleted
+        )
+        VALUES (
+          @TaskId, @RequestedBy, GETDATE(), @Reason, 5, NULL,
+          @AssignedToUserID, @AssignedByUserID, @ReworkRound,
+          @PreviousWorkedMinutes, 0, @TotalWorkedMinutes,
+          NULL, 0, @CreatedBy, GETDATE(), 0
+        )
+      `);
+
+      // 5. Update TaskMaster StatusID = 5
+      const updateTaskReq = new sql.Request(transaction);
+      updateTaskReq.input('TaskId', sql.BigInt, taskId);
+      await updateTaskReq.query(`
+        UPDATE TaskMaster 
+        SET StatusID = 5 
+        WHERE TaskID = @TaskId
+      `);
+
+      // 6. Log History & Notify
+      await logTaskHistory(transaction, taskId, 4, 5, authUserId, 'Reopened for Client Revision');
+      if (task.AssignedToUserID) {
+        await createNotification(transaction, task.AssignedToUserID, 'CLIENT_REVISION', 'Client Revision', `Task ${task.TaskCode} has been reopened for Client Revision.`, taskId);
+      }
+
+      await transaction.commit();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Task reopened for Client Revision successfully.',
+        taskId,
+        statusId: 5
+      });
+    } catch (txErr) {
+      await transaction.rollback();
+      throw txErr;
+    }
+  } catch (err) {
+    console.error('[reopenForClientRevision] Error:', err);
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to reopen task.', details: err.message });
+  }
+}
+
 router.get('/', secured(listTasks));
 router.post('/', securedAny(createTask));
 router.get('/department-queue/:stageId', secured(getDepartmentQueue));
 router.get('/artist/:artistId', secured(getArtistTasks));
 router.post('/:id/submit-review', securedAny(submitTaskForReview));
+router.post('/:id/client-revision', securedProduction(reopenForClientRevision));
 router.get('/:id/reviews', securedAny(getTaskReviews));
 router.get('/:id/timeline', securedAny(getTaskTimeline));
 router.get('/:id', secured(getTaskById));

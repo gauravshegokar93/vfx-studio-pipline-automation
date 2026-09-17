@@ -59,6 +59,10 @@ export default function DepartmentQueuePage() {
   const [remarks, setRemarks] = useState<string>('');
   const [assigning, setAssigning] = useState(false);
 
+  // Adjust Target Modal
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -135,6 +139,32 @@ export default function DepartmentQueuePage() {
     }
   };
 
+  const handleOpenAdjustModal = (e: React.MouseEvent, task: TaskItem) => {
+    e.stopPropagation();
+    setSelectedTask(task);
+    setTargetBid(task.targetBid || 0);
+    setRemarks('');
+    setAdjustModalOpen(true);
+  };
+
+  const handleExecuteAdjustTarget = async () => {
+    if (!selectedTask) return;
+    setAdjusting(true);
+    try {
+      await taskService.adjustTarget(selectedTask.taskId, {
+        targetBid: targetBid,
+        remarks: remarks
+      });
+      toast({ title: 'Target Adjusted', description: `Target bid for ${selectedTask.taskCode} updated to ${targetBid} Bid.` });
+      setAdjustModalOpen(false);
+      loadData();
+    } catch (err: any) {
+      toast({ title: 'Update Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setAdjusting(false);
+    }
+  };
+
   const formattedBid = (val?: number) => {
     if (val === undefined || val === null) return '0.00 Bid';
     return `${val.toFixed(2)} Bid`;
@@ -196,8 +226,8 @@ export default function DepartmentQueuePage() {
                 className="bg-sidebar border border-sidebar-border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-crimson"
               >
                 <option value="all">All Projects</option>
-                {projects.map(p => (
-                  <option key={p.id} value={p.id}>{p.projectName} ({p.projectCode})</option>
+                {projects.map((p, idx) => (
+                  <option key={p.id || `proj-${idx}`} value={p.id}>{p.projectName} ({p.projectCode})</option>
                 ))}
               </select>
             </div>
@@ -261,7 +291,7 @@ export default function DepartmentQueuePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map((task) => {
+                {tasks.map((task, idx) => {
                   const estBid = task.estimatedBid !== undefined && task.estimatedBid !== null ? task.estimatedBid : (task.estimatedHours ? task.estimatedHours / 8 : 0);
                   const tgtBid = task.targetBid !== undefined && task.targetBid !== null ? task.targetBid : (task.targetHours ? task.targetHours / 8 : estBid);
                   const actBid = task.actualBid !== undefined && task.actualBid !== null ? task.actualBid : (task.actualHours ? task.actualHours / 8 : 0);
@@ -278,9 +308,9 @@ export default function DepartmentQueuePage() {
 
                   return (
                     <TableRow 
-                      key={task.taskId} 
+                      key={task.taskId || task.id || `task-${idx}`} 
                       className="border-sidebar-border hover:bg-sidebar-accent/30 h-16 cursor-pointer transition-colors"
-                      onClick={() => window.location.href = `/tasks/${task.taskId}`}
+                      onClick={() => window.location.href = `/tasks/${task.taskId || task.id}`}
                     >
                       <TableCell className="pl-6 font-mono">
                         <p className="font-bold text-white text-sm tracking-tight">{task.taskCode}</p>
@@ -322,7 +352,14 @@ export default function DepartmentQueuePage() {
                         </Badge>
                       </TableCell>
 
-                      <TableCell className="font-mono text-xs text-white">{formattedBid(estBid)}</TableCell>
+                      <TableCell className="font-mono text-xs text-white">
+                        <div className="flex items-center gap-1.5">
+                          {formattedBid(estBid)}
+                          {task.assignedArtist && tgtBid > estBid && (
+                            <span title="Target exceeds Client Estimate"><AlertCircle className="w-3 h-3 text-red-500" /></span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="font-mono text-xs text-yellow-400 font-bold">{formattedBid(tgtBid)}</TableCell>
                       <TableCell className="font-mono text-xs text-emerald-400 font-bold">{formattedBid(actBid)}</TableCell>
                       <TableCell className="font-mono text-xs text-crimson font-bold">{formattedBid(remBid)}</TableCell>
@@ -343,11 +380,16 @@ export default function DepartmentQueuePage() {
                             Assign Artist
                           </Button>
                         ) : (
-                          <Button size="sm" variant="ghost" className="text-xs text-muted-foreground hover:text-white gap-1" asChild>
-                            <Link href={`/tasks/${task.taskId}`}>
-                              View <ExternalLink className="w-3 h-3" />
-                            </Link>
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button size="sm" variant="outline" className="hover:bg-yellow-500 hover:text-white transition-all text-xs border-sidebar-border" onClick={(e) => handleOpenAdjustModal(e, task)}>
+                              Adjust Target
+                            </Button>
+                            <Button size="sm" variant="ghost" className="text-xs text-muted-foreground hover:text-white gap-1" asChild>
+                              <Link href={`/tasks/${task.taskId}`}>
+                                View <ExternalLink className="w-3 h-3" />
+                              </Link>
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -405,21 +447,26 @@ export default function DepartmentQueuePage() {
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
-                    {activeArtists.map((artist) => {
-                      const isSelected = selectedArtist?.userId === artist.userId || selectedArtist?.id === artist.id || (selectedArtist as any)?.UserId === (artist as any).UserId;
+                    {activeArtists.map((artist, idx) => {
+                      const artistKey = artist.userId || artist.id || (artist as any).UserId || `artist-${idx}`;
+                      const isSelected = !!selectedArtist && (
+                        (selectedArtist.userId !== undefined && selectedArtist.userId === artist.userId) ||
+                        (selectedArtist.id !== undefined && selectedArtist.id === artist.id) ||
+                        ((selectedArtist as any).UserId !== undefined && (selectedArtist as any).UserId === (artist as any).UserId)
+                      );
                       return (
                       <div
-                        key={artist.userId || artist.id}
+                        key={artistKey}
                         className={cn(
                           "p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between",
-                          isSelected ? "bg-crimson/20 border-crimson text-white" : "bg-sidebar-accent/40 border-sidebar-border text-muted-foreground hover:border-crimson/50"
+                          isSelected ? "bg-emerald-500/10 border-emerald-500 ring-1 ring-emerald-500 text-white" : "bg-sidebar-accent/40 border-sidebar-border text-muted-foreground hover:border-emerald-500/50"
                         )}
                         onClick={() => setSelectedArtist(artist)}
                       >
                         <div className="flex items-center gap-3">
                           <div className={cn(
                             "w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs",
-                            isSelected ? "bg-crimson text-white" : "bg-sidebar text-muted-foreground"
+                            isSelected ? "bg-emerald-500 text-white" : "bg-sidebar text-muted-foreground"
                           )}>
                             {(artist.FullName || artist.fullName)?.charAt(0)}
                           </div>
@@ -431,9 +478,14 @@ export default function DepartmentQueuePage() {
                             </p>
                           </div>
                         </div>
-                        <Button size="sm" variant={isSelected ? "default" : "ghost"} className={isSelected ? "bg-crimson text-white" : ""}>
-                          {isSelected ? 'Selected' : 'Select'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {isSelected && <span className="text-emerald-500 font-bold text-[10px] uppercase">Selected</span>}
+                          {isSelected ? (
+                            <CheckCircle className="w-5 h-5 text-emerald-500" />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full border border-sidebar-border" />
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -469,6 +521,96 @@ export default function DepartmentQueuePage() {
               <Button variant="outline" className="flex-1" onClick={() => setAssignModalOpen(false)}>Cancel</Button>
               <Button className="bg-crimson hover:bg-crimson/90 flex-1 font-bold shadow-lg shadow-crimson/20" onClick={handleExecuteAssignment} disabled={assigning}>
                 {assigning ? 'Assigning...' : 'Confirm Assignment'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={adjustModalOpen} onOpenChange={setAdjustModalOpen}>
+          <DialogContent className="bg-sidebar border-sidebar-border text-white max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-headline flex items-center gap-3">
+                <Briefcase className="text-yellow-400" /> Adjust Target: {selectedTask?.taskCode}
+              </DialogTitle>
+              <DialogDescription className="hidden">Form to adjust target bid.</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              {/* Context Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Assigned Artist</p>
+                  <p className="text-white font-bold text-sm flex items-center gap-2 mt-1">
+                    <UserCircle className="w-4 h-4 text-blue-400" /> {selectedTask?.assignedArtist}
+                  </p>
+                </div>
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Client Estimate</p>
+                  <p className="text-white font-mono font-bold text-sm mt-1">
+                    {formattedBid(selectedTask?.estimatedBid !== undefined && selectedTask?.estimatedBid !== null ? selectedTask.estimatedBid : (selectedTask?.estimatedHours ? selectedTask.estimatedHours / 8 : 0))}
+                  </p>
+                </div>
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Actual Logged</p>
+                  <p className="text-emerald-400 font-mono font-bold text-sm mt-1">
+                    {formattedBid(selectedTask?.actualHours ? selectedTask.actualHours / 8 : 0)}
+                  </p>
+                </div>
+                <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border">
+                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Target Remaining</p>
+                  <p className="text-crimson font-mono font-bold text-sm mt-1">
+                    {formattedBid(Math.max(0, (selectedTask?.targetHours || 0) - (selectedTask?.actualHours || 0)) / 8)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning Area */}
+              {selectedTask && (
+                (() => {
+                  const estBid = selectedTask.estimatedBid !== undefined && selectedTask.estimatedBid !== null ? selectedTask.estimatedBid : (selectedTask.estimatedHours ? selectedTask.estimatedHours / 8 : 0);
+                  if (targetBid > estBid) {
+                    return (
+                      <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-lg flex items-center gap-3">
+                        <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                        <p className="text-xs text-red-400 font-medium">Warning: Target allocation ({targetBid.toFixed(2)} Bid) exceeds client estimate ({estBid.toFixed(2)} Bid).</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()
+              )}
+
+              {/* Input */}
+              <div className="space-y-3">
+                <Label className="text-xs uppercase font-bold text-muted-foreground">New Target Allocation (Bid)</Label>
+                <div className="relative">
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    min="0"
+                    value={targetBid} 
+                    onChange={(e) => setTargetBid(parseFloat(e.target.value) || 0)}
+                    className="bg-sidebar-accent/40 border-sidebar-border text-white text-lg font-mono py-6 pl-4 font-bold rounded-xl"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">Bid ({targetBid * 8} Hours)</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-xs uppercase font-bold text-muted-foreground">Remarks (Optional)</Label>
+                <textarea 
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="w-full bg-sidebar-accent/40 border-sidebar-border text-white text-sm p-3 rounded-xl min-h-[80px] focus:outline-none focus:ring-1 focus:ring-crimson resize-none"
+                  placeholder="Reason for adjustment..."
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="border-t border-sidebar-border pt-4 gap-2">
+              <Button variant="ghost" onClick={() => setAdjustModalOpen(false)} className="text-muted-foreground hover:text-white">Cancel</Button>
+              <Button onClick={handleExecuteAdjustTarget} disabled={adjusting} className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-8">
+                {adjusting ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Briefcase className="w-4 h-4 mr-2" />}
+                Save Adjustment
               </Button>
             </DialogFooter>
           </DialogContent>

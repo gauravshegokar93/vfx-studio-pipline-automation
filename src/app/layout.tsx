@@ -3,6 +3,7 @@ import './globals.css';
 import { DatabaseSync } from '@/components/layout/database-sync';
 import { AuthProvider } from '@/context/AuthContext';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
   title: 'SM rolling FX Hub | Enterprise Production Intelligence',
@@ -30,6 +31,7 @@ export default function RootLayout({
             {children}
           </AuthGuard>
         </AuthProvider>
+        <Toaster />
       </body>
     </html>
   );

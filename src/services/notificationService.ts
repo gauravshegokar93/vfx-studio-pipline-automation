@@ -35,5 +35,18 @@ export const notificationService = {
       console.error('Failed to mark notification as read:', err);
       return false;
     }
+  },
+
+  /**
+   * Mark all notifications as read
+   */
+  markAllAsRead: async (): Promise<boolean> => {
+    try {
+      await apiClient.post('/notifications/mark-all-read');
+      return true;
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
+      return false;
+    }
   }
 };

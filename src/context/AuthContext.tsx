@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import type { User, Role } from "@/lib/types";
 import { logoutApi } from "@/lib/api";
 import { useLuminaStore } from "@/lib/store";
+import { clearAuthInterceptorState } from "@/services/apiClient";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -111,6 +112,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Ignore logout API errors — local session will still be cleared
       });
     }
+
+    clearAuthInterceptorState();
 
     setState({
       isAuthenticated: false,

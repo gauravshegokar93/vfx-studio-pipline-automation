@@ -274,28 +274,28 @@ async function getOrgHierarchy(req, res) {
 
 module.exports = {
 
-    getUsers: secured(getUsers, ['users.view']),
+    getUsers: secured(getUsers, ['users.view', 'Super Admin', 'Admin', 'Production Head', 'Project Manager', 'Team Lead']),
 
     getMe: secured(getMe),
 
-    getUserById: secured(getUserById, ['users.view']),
+    getUserById: secured(getUserById, ['users.view', 'Super Admin', 'Admin', 'Production Head', 'Project Manager', 'Team Lead']),
 
-    createUser: secured(createUser, ['users.create']),
+    createUser: secured(createUser, ['users.create', 'Super Admin', 'Admin', 'Production Head', 'Project Manager']),
 
-    updateUser: secured(updateUser, ['users.edit']),
+    updateUser: secured(updateUser, ['users.edit', 'Super Admin', 'Admin', 'Production Head', 'Project Manager']),
 
-    toggleUserStatus: secured(toggleUserStatus, ['users.edit']),
+    toggleUserStatus: secured(toggleUserStatus, ['users.edit', 'Super Admin', 'Admin', 'Production Head', 'Project Manager']),
 
     deleteUser: secured(deleteUser, ['Super Admin', 'Admin']),
 
-    getUserPermissions: secured(getUserPermissions, ['users.permissions']),
+    getUserPermissions: secured(getUserPermissions, ['users.permissions', 'Super Admin', 'Admin', 'Production Head', 'Project Manager']),
 
-    updateUserPermissions: secured(updateUserPermissions, ['users.permissions']),
+    updateUserPermissions: secured(updateUserPermissions, ['users.permissions', 'Super Admin', 'Admin', 'Production Head', 'Project Manager']),
     
-    resetPassword: secured(resetPassword, ['users.edit']),
+    resetPassword: secured(resetPassword, ['users.edit', 'Super Admin', 'Admin', 'Production Head', 'Project Manager']),
 
-    getReportingLeads: secured(getReportingLeads, ['users.view']),
+    getReportingLeads: secured(getReportingLeads, ['users.view', 'Super Admin', 'Admin', 'Production Head', 'Project Manager', 'Team Lead']),
 
-    getOrgHierarchy: secured(getOrgHierarchy, ['users.view'])
+    getOrgHierarchy: secured(getOrgHierarchy, ['users.view', 'Super Admin', 'Admin', 'Production Head', 'Project Manager', 'Team Lead'])
 
 };

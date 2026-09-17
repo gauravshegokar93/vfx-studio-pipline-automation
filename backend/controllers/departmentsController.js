@@ -17,8 +17,13 @@ async function getDepartments(req, res) {
     const result = await request.query(`
       SELECT DepartmentId AS id, DepartmentName AS name
       FROM DepartmentMaster
-      WHERE IsActive = 1
-      ORDER BY DepartmentName ASC;
+      WHERE DepartmentName IN ('Roto', 'Paint', 'Comp', 'CG')
+      ORDER BY CASE 
+        WHEN DepartmentName = 'Roto' THEN 1
+        WHEN DepartmentName = 'Paint' THEN 2
+        WHEN DepartmentName = 'Comp' THEN 3
+        WHEN DepartmentName = 'CG' THEN 4
+      END ASC;
     `);
   
     return res.json({ success: true, items: result.recordset || [] });

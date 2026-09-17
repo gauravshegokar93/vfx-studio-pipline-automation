@@ -8,6 +8,7 @@ export interface AnalyticsFilterParams {
   dateRange?: string;
   startDate?: string;
   endDate?: string;
+  complexity?: string;
 }
 
 export interface AnalyticsKpi {
@@ -95,10 +96,25 @@ export interface ReviewAnalyticsData {
   reworkQueueCount: number;
 }
 
+export interface OverdueAnalyticsItem {
+  name: string;
+  count: number;
+}
+
 export interface OverdueAnalyticsData {
   totalOverdue: number;
-  byProject: Array<{ name: string; count: number }>;
-  byStage: Array<{ name: string; count: number }>;
+  byProject: OverdueAnalyticsItem[];
+  byStage: OverdueAnalyticsItem[];
+}
+
+export interface ComplexityAnalyticsItem {
+  complexity: string;
+  taskVolume: number;
+  overdueCount: number;
+  completedCount: number;
+  reworkCount: number;
+  actualHours: number;
+  estimatedHours: number;
 }
 
 export interface AttentionRequiredItem {
@@ -125,6 +141,7 @@ export interface AnalyticsResponse {
     projects: Array<{ id: number | string; projectCode: string; projectName: string }>;
     stages: Array<{ id: number; stageName: string }>;
     artists: Array<{ id: number; fullName: string; employeeCode: string; departmentName: string }>;
+    complexities: string[];
   };
   kpis: AnalyticsKpi;
   taskStatusDistribution: TaskStatusDistributionItem[];
@@ -139,6 +156,7 @@ export interface AnalyticsResponse {
   reviewAnalytics: ReviewAnalyticsData;
   overdueAnalytics: OverdueAnalyticsData;
   attentionRequired: AttentionRequiredItem[];
+  complexityAnalytics: ComplexityAnalyticsItem[];
 }
 
 export interface PerformanceMetric {

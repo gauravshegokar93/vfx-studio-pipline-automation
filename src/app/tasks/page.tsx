@@ -207,6 +207,7 @@ export default function ArtistTasksPage() {
                   <TableHead className="pl-6">Shot Name</TableHead>
                   <TableHead>Task Code</TableHead>
                   <TableHead>Stage</TableHead>
+                  <TableHead>Complexity</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Estimated Bid</TableHead>
                   <TableHead>Target Bid</TableHead>
@@ -237,6 +238,21 @@ export default function ArtistTasksPage() {
                       <TableCell className="text-white font-mono text-sm">{task.taskCode}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-crimson border-crimson/20 uppercase text-[10px]">{task.stage}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {task.complexity ? (
+                          <Badge variant="outline" className={cn(
+                            "uppercase text-[10px] font-bold",
+                            task.complexity.toLowerCase().includes('hard') ? "text-red-400 border-red-400/30 bg-red-400/10" :
+                            task.complexity.toLowerCase().includes('mid') ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" :
+                            task.complexity.toLowerCase().includes('easy') ? "text-green-400 border-green-400/30 bg-green-400/10" :
+                            "text-blue-400 border-blue-400/30 bg-blue-400/10"
+                          )}>
+                            {task.complexity}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge className={cn(

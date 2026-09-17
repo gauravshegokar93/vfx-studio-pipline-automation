@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { AppSidebar } from '@/components/layout/sidebar';
 import { 
   taskService, 
@@ -56,7 +57,8 @@ import {
   Lock,
   RotateCcw,
   Star,
-  Activity
+  Activity,
+  Target
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -82,6 +84,7 @@ function formatDurationDisplay(hours: number): string {
 export default function TaskDetailPage() {
   const { id } = useParams();
   const { toast } = useToast();
+  const { role: authRole } = useAuth();
 
   const [task, setTask] = useState<TaskItem | null>(null);
   const [summary, setSummary] = useState<TaskTimeSummary | null>(null);
@@ -242,6 +245,20 @@ export default function TaskDetailPage() {
     }
   };
 
+  const handleClientRevision = async () => {
+    if (!task) return;
+    setTimerActionLoading(true);
+    const res = await taskService.reopenForClientRevision(task.taskId);
+    setTimerActionLoading(false);
+
+    if (res.success) {
+      toast({ title: 'Task Reopened', description: `Task ${task.taskCode} reopened for Client Revision.` });
+      fetchTaskDetails();
+    } else {
+      toast({ title: 'Error', description: res.message || 'Failed to reopen task', variant: 'destructive' });
+    }
+  };
+
   const handleSubmitForReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!task) return;
@@ -259,6 +276,11 @@ export default function TaskDetailPage() {
       toast({ title: 'Submission Error', description: res.message || 'Failed to submit task for review', variant: 'destructive' });
     }
   };
+
+  const combinedHistory = [
+    ...reviews.map(r => ({ type: 'review', date: r.reviewDate || new Date().toISOString(), data: r })),
+    ...reworks.filter(rw => rw.reason === 'Client Revision').map(rw => ({ type: 'client_revision', date: rw.requestedDate || new Date().toISOString(), data: rw }))
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   if (loading) return <div className="p-8"><Skeleton className="h-full w-full bg-sidebar-accent" /></div>;
 
@@ -311,9 +333,20 @@ export default function TaskDetailPage() {
             {/* Timer Actions & Status Controls */}
             <div className="flex items-center gap-3">
               {isCompleted ? (
-                <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 gap-1.5 text-sm py-2 px-4 font-semibold">
-                  <Lock className="w-4 h-4" /> Locked (Completed)
-                </Badge>
+                <>
+                  <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 gap-1.5 text-sm py-2 px-4 font-semibold">
+                    <Lock className="w-4 h-4" /> Locked (Completed)
+                  </Badge>
+                  {['Super Admin', 'Production Head', 'Team Lead'].includes(authRole || '') && (
+                    <Button
+                      onClick={handleClientRevision}
+                      disabled={timerActionLoading}
+                      className="bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold shadow-lg ml-2"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Reopen for Client Revision
+                    </Button>
+                  )}
+                </>
               ) : isReview ? (
                 <Badge variant="outline" className="text-amber-400 border-amber-500/30 gap-1.5 text-sm py-2 px-4 font-semibold animate-pulse">
                   <Clock className="w-4 h-4 animate-spin" /> Under Review
@@ -460,6 +493,29 @@ export default function TaskDetailPage() {
                   <Layers className="text-blue-500 w-4 h-4" />
                   <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Priority</p><p className="text-white text-sm font-semibold">{task.priority || 'Medium'}</p></div>
                 </div>
+                {task.complexity && (
+                  <div className="flex items-center gap-3">
+                    <Target className={cn(
+                      "w-4 h-4",
+                      task.complexity.toLowerCase().includes('hard') ? "text-red-400" :
+                      task.complexity.toLowerCase().includes('mid') ? "text-yellow-400" :
+                      task.complexity.toLowerCase().includes('easy') ? "text-green-400" :
+                      "text-blue-400"
+                    )} />
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Complexity</p>
+                      <Badge variant="outline" className={cn(
+                        "uppercase text-[10px] font-bold mt-0.5",
+                        task.complexity.toLowerCase().includes('hard') ? "text-red-400 border-red-400/30 bg-red-400/10" :
+                        task.complexity.toLowerCase().includes('mid') ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" :
+                        task.complexity.toLowerCase().includes('easy') ? "text-green-400 border-green-400/30 bg-green-400/10" :
+                        "text-blue-400 border-blue-400/30 bg-blue-400/10"
+                      )}>
+                        {task.complexity}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   <Calendar className="text-emerald-500 w-4 h-4" />
                   <div>
@@ -569,7 +625,7 @@ export default function TaskDetailPage() {
 
             {/* Chronological Review & Rework History Tab */}
             <TabsContent value="reviews" className="mt-6 space-y-6">
-              {reviews.length === 0 ? (
+              {combinedHistory.length === 0 ? (
                 <Card className="bg-card border-none p-12 text-center text-muted-foreground animate-in fade-in slide-in-from-bottom-1.5 duration-200 ease-out">
                   <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
                   <p className="text-base font-semibold text-white">No Review History Recorded</p>
@@ -577,15 +633,58 @@ export default function TaskDetailPage() {
                 </Card>
               ) : (
                 <div className="space-y-6">
-                  {reviews.map((rev, idx) => {
-                    const versionLabel = `v${String(idx + 1).padStart(3, '0')}`;
+                  {combinedHistory.map((item, idx) => {
+                    if (item.type === 'client_revision') {
+                      const cr = item.data as TaskReworkItem;
+                      return (
+                        <Card key={`cr-${cr.reworkId}`} className="bg-card border-sidebar-border overflow-hidden shadow-xl">
+                          <CardHeader className="bg-sidebar-accent/30 pb-3 flex flex-row items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Badge className="bg-blue-600 text-white font-mono text-sm px-3 py-1 font-bold">
+                                CR#{cr.reworkRound}
+                              </Badge>
+                              <div>
+                                <CardTitle className="text-base font-headline text-white">
+                                  Client Revision #{cr.reworkRound}
+                                </CardTitle>
+                                <p className="text-xs text-muted-foreground font-mono">
+                                  Requested on {cr.requestedDate ? formatDateTimeLocal(cr.requestedDate) : 'N/A'} by <span className="text-white font-semibold">{cr.requestedByName || 'Admin'}</span>
+                                </p>
+                              </div>
+                            </div>
+                            <Badge className="uppercase text-[10px] font-bold px-3 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                              CLIENT REVISION
+                            </Badge>
+                          </CardHeader>
+                          <CardContent className="p-5 space-y-4">
+                            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 space-y-3">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-2 text-blue-400 font-bold text-sm">
+                                  <RotateCcw className="w-4 h-4" /> REOPENED FOR CLIENT REVISION
+                                </div>
+                              </div>
+                              <div className="pt-2 border-t border-blue-500/20">
+                                <span className="text-xs font-bold uppercase tracking-wider text-blue-300 block mb-1">Reason:</span>
+                                <p className="text-white font-medium text-sm leading-relaxed bg-blue-950/40 p-3 rounded border border-blue-500/30">
+                                  &quot;{cr.reason}&quot;
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    }
+
+                    const rev = item.data as TaskReviewItem;
+                    const reviewIdx = reviews.findIndex(r => r.reviewId === rev.reviewId);
+                    const versionLabel = `v${String(reviewIdx + 1).padStart(3, '0')}`;
                     const reworkMatch = reworks.find(rw => rw.reviewId === rev.reviewId);
                     const isApproved = rev.reviewStatus === 'Approved';
                     const isRework = rev.reviewStatus === 'Rework';
                     const isSubmitted = rev.reviewStatus === 'Submitted';
 
                     return (
-                      <Card key={rev.reviewId} className="bg-card border-sidebar-border overflow-hidden shadow-xl">
+                      <Card key={`rev-${rev.reviewId}`} className="bg-card border-sidebar-border overflow-hidden shadow-xl">
                         <CardHeader className="bg-sidebar-accent/30 pb-3 flex flex-row items-center justify-between">
                           <div className="flex items-center gap-3">
                             <Badge className="bg-crimson text-white font-mono text-sm px-3 py-1 font-bold">

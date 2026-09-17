@@ -283,6 +283,7 @@ async function createUser(transaction, user) {
   request.input('ReportingManagerId', sql.BigInt, user.leadId);
   request.input('PasswordHash', sql.NVarChar(sql.MAX), user.passwordHash);
   request.input('IsActive', sql.Bit, user.isActive !== undefined ? user.isActive : 1);
+  request.input('JoiningDate', sql.Date, user.joiningDate || null);
 
   await request.query(`
       INSERT INTO UserMaster
@@ -296,7 +297,8 @@ async function createUser(transaction, user) {
           HomeTeamId,
           ReportingManagerId,
           PasswordHash,
-          IsActive
+          IsActive,
+          JoiningDate
       )
       VALUES
       (
@@ -309,7 +311,8 @@ async function createUser(transaction, user) {
           @HomeTeamId,
           @ReportingManagerId,
           @PasswordHash,
-          @IsActive
+          @IsActive,
+          @JoiningDate
       )
   `);
 
@@ -597,16 +600,31 @@ async function updateUserPermissions(userId, grantIds, denyIds) {
 // Returns active users with Lead/Manager roles
 // optionally filtered by departmentId and/or teamId
 // ==========================================
-async function getReportingLeads({ departmentId, teamId } = {}) {
+async function getReportingLeads({ departmentId, teamId, role } = {}) {
   return withDb(async (pool) => {
     const request = pool.request();
     const where = [
-      `um.IsActive = 1`,
-      // Valid reporting lead roles: Production Head(2), Project Manager(3), Team Lead(4)
-      `um.RoleId IN (2, 3, 4)`
+      `um.IsActive = 1`
     ];
 
-    if (departmentId) {
+    // Artist / QC Artist can only report to Team Leads (4)
+    if (role === 'Artist' || role === 'QC Artist') {
+      where.push(`rm.RoleName = 'Team Lead'`);
+    } 
+    // Team Lead can report to Production Head (2) or Project Manager (3)
+    else if (role === 'Team Lead') {
+      where.push(`rm.RoleName IN ('Production Head', 'Project Manager')`);
+    }
+    // Project Manager reports to Production Head (2)
+    else if (role === 'Project Manager') {
+      where.push(`rm.RoleName = 'Production Head'`);
+    }
+    // Default fallback (e.g. for backwards compatibility)
+    else {
+      where.push(`rm.RoleName IN ('Production Head', 'Project Manager', 'Team Lead')`);
+    }
+
+    if (departmentId && (role === 'Artist' || role === 'QC Artist')) {
       const dId = parseInt(departmentId, 10);
       if (!isNaN(dId)) {
         request.input('DepartmentId', sql.BigInt, dId);
@@ -614,7 +632,7 @@ async function getReportingLeads({ departmentId, teamId } = {}) {
       }
     }
 
-    if (teamId) {
+    if (teamId && (role === 'Artist' || role === 'QC Artist')) {
       const tId = parseInt(teamId, 10);
       if (!isNaN(tId)) {
         request.input('TeamId', sql.BigInt, tId);
@@ -811,16 +829,31 @@ async function getTeamMembers(teamId) {
 // ==========================================
 async function createTeam({ teamCode, teamName, departmentId, createdBy }) {
   return withDb(async (pool) => {
-    const request = pool.request();
-    request.input('TeamCode', sql.NVarChar(50), teamCode);
-    request.input('TeamName', sql.NVarChar(255), teamName);
-    request.input('DepartmentId', sql.BigInt, departmentId || null);
-    const result = await request.query(`
-      INSERT INTO TeamMaster (TeamCode, TeamName, DepartmentId, IsActive)
-      OUTPUT inserted.TeamId, inserted.TeamCode, inserted.TeamName, inserted.DepartmentId, inserted.IsActive
-      VALUES (@TeamCode, @TeamName, @DepartmentId, 1)
-    `);
-    return result.recordset[0];
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      const request = new sql.Request(transaction);
+      
+      const maxRes = await request.query(`SELECT ISNULL(MAX(TeamId), 0) + 1 AS NextId FROM TeamMaster WITH (UPDLOCK, HOLDLOCK)`);
+      const nextId = maxRes.recordset[0].NextId;
+
+      request.input('TeamId', sql.BigInt, nextId);
+      request.input('TeamCode', sql.NVarChar(50), teamCode);
+      request.input('TeamName', sql.NVarChar(255), teamName);
+      request.input('DepartmentId', sql.BigInt, departmentId || null);
+      
+      const result = await request.query(`
+        INSERT INTO TeamMaster (TeamId, TeamCode, TeamName, DepartmentId, IsActive)
+        OUTPUT inserted.TeamId, inserted.TeamCode, inserted.TeamName, inserted.DepartmentId, inserted.IsActive
+        VALUES (@TeamId, @TeamCode, @TeamName, @DepartmentId, 1)
+      `);
+      
+      await transaction.commit();
+      return result.recordset[0];
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
   });
 }
 

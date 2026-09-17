@@ -46,6 +46,10 @@ const createUserSchema = Joi.object({
     .allow('', null)
     .optional(),
 
+  joiningDate: Joi.string()
+    .allow(null, '')
+    .optional(),
+
   password: Joi.string()
     .min(6)
     .max(100)
