@@ -110,7 +110,7 @@ async function listTasks(req, res) {
         (ISNULL(tl.actualHours, 0) * 60) AS actualMinutes,
         ROUND((ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) / 8.0, 2) AS remainingBid,
         (ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) AS remainingHours,
-          (
+          ISNULL((
             SELECT TOP 1 ibr.Complexity 
             FROM ImportBatchRow ibr 
             JOIN ImportBatch ib ON ib.ImportBatchID = ibr.ImportBatchID 
@@ -119,7 +119,7 @@ async function listTasks(req, res) {
             AND (ibr.Episode = seq.SequenceCode OR ibr.Episode = r.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
             AND ib.ImportStatus = 'APPROVED'
             ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
-          ) AS complexity
+          ), 'Unknown') AS complexity
       FROM TaskMaster t
       INNER JOIN ShotMaster s ON t.ShotID = s.ShotId
       LEFT JOIN SequenceMaster seq ON s.SequenceId = seq.SequenceId
@@ -291,6 +291,21 @@ async function getArtistTasks(req, res) {
     request.input('ArtistId', sql.BigInt, parsedArtistId);
 
     const query = `
+      WITH ActiveAssignments AS (
+        SELECT TaskID, UserID, TargetHours, AssignedDate, Remarks, AssignmentID,
+               ROW_NUMBER() OVER(PARTITION BY TaskID ORDER BY AssignmentID DESC) as rn
+        FROM TaskAssignment
+      ),
+      TimeLogStats AS (
+        SELECT TaskID, SUM(
+          CASE 
+            WHEN EndTime IS NOT NULL THEN HoursWorked
+            ELSE DATEDIFF(SECOND, StartTime, GETDATE()) / 3600.0
+          END
+        ) AS actualHours
+        FROM TimeLog
+        GROUP BY TaskID
+      )
       SELECT
         t.TaskID AS taskId,
         t.TaskID AS id,
@@ -308,18 +323,19 @@ async function getArtistTasks(req, res) {
         ISNULL(wsm.StageName, 'General') AS stage,
         t.EstimatedHours AS estimatedHours,
         ROUND(t.EstimatedHours / 8.0, 2) AS estimatedBid,
-        ISNULL(ta.TargetHours, t.EstimatedHours) AS targetHours,
-        ROUND(ISNULL(ta.TargetHours, t.EstimatedHours) / 8.0, 2) AS targetBid,
+        ISNULL(ta.TargetHours, 0) AS targetHours,
+        ROUND(ISNULL(ta.TargetHours, 0) / 8.0, 2) AS targetBid,
         ISNULL(tl.actualHours, 0) AS actualHours,
         ROUND(ISNULL(tl.actualHours, 0) / 8.0, 2) AS actualBid,
         (ISNULL(tl.actualHours, 0) * 60) AS actualMinutes,
-        ROUND((ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) / 8.0, 2) AS remainingBid,
-        (ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) AS remainingHours,
+        ROUND((CASE WHEN ISNULL(ta.TargetHours, 0) > ISNULL(tl.actualHours, 0) THEN ISNULL(ta.TargetHours, 0) - ISNULL(tl.actualHours, 0) ELSE 0 END) / 8.0, 2) AS remainingBid,
+        (CASE WHEN ISNULL(ta.TargetHours, 0) > ISNULL(tl.actualHours, 0) THEN ISNULL(ta.TargetHours, 0) - ISNULL(tl.actualHours, 0) ELSE 0 END) AS remainingHours,
         t.DueDate AS dueDate,
         ISNULL(st.StatusName, 'Assigned') AS status,
         t.StatusID AS statusId,
         ta.AssignedDate AS assignedDate,
         ta.Remarks AS remarks,
+        ISNULL(
           (
             SELECT TOP 1 ibr.Complexity 
             FROM ImportBatchRow ibr 
@@ -329,25 +345,17 @@ async function getArtistTasks(req, res) {
             AND (ibr.Episode = seq.SequenceCode OR ibr.Episode = r.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
             AND ib.ImportStatus = 'APPROVED'
             ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
-          ) AS complexity
-      FROM TaskAssignment ta
-      INNER JOIN TaskMaster t ON ta.TaskID = t.TaskID
+          ), 'Unknown'
+        ) AS complexity
+      FROM TaskMaster t
+      INNER JOIN ActiveAssignments ta ON t.TaskID = ta.TaskID AND ta.rn = 1
       INNER JOIN ShotMaster s ON t.ShotID = s.ShotId
       LEFT JOIN SequenceMaster seq ON s.SequenceId = seq.SequenceId
       LEFT JOIN ReelMaster r ON seq.ReelId = r.ReelId
       LEFT JOIN ProjectMaster pm ON r.ProjectId = pm.ProjectId
       LEFT JOIN WorkflowStageMaster wsm ON t.WorkflowStageID = wsm.StageId
       LEFT JOIN StatusMaster st ON t.StatusID = st.StatusId
-      LEFT JOIN (
-        SELECT TaskID, SUM(
-          CASE 
-            WHEN EndTime IS NOT NULL THEN HoursWorked
-            ELSE DATEDIFF(SECOND, StartTime, GETDATE()) / 3600.0
-          END
-        ) AS actualHours
-        FROM TimeLog
-        GROUP BY TaskID
-      ) tl ON t.TaskID = tl.TaskID
+      LEFT JOIN TimeLogStats tl ON t.TaskID = tl.TaskID
       WHERE ta.UserID = @ArtistId AND t.IsActive = 1 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
       ORDER BY ta.AssignedDate DESC;
     `;
@@ -409,7 +417,7 @@ async function getTaskById(req, res) {
         (ISNULL(tl.actualHours, 0) * 60) AS actualMinutes,
         ROUND((ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) / 8.0, 2) AS remainingBid,
         (ISNULL(ta.TargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) AS remainingHours,
-          (
+          ISNULL((
             SELECT TOP 1 ibr.Complexity 
             FROM ImportBatchRow ibr 
             JOIN ImportBatch ib ON ib.ImportBatchID = ibr.ImportBatchID 
@@ -418,7 +426,7 @@ async function getTaskById(req, res) {
             AND (ibr.Episode = seq.SequenceCode OR ibr.Episode = r.ReelName OR ibr.Episode IS NULL OR ibr.Episode = '')
             AND ib.ImportStatus = 'APPROVED'
             ORDER BY ibr.CreatedDate DESC, ibr.BatchRowID DESC
-          ) AS complexity
+          ), 'Unknown') AS complexity
       FROM TaskMaster t
       INNER JOIN ShotMaster s ON t.ShotID = s.ShotId
       LEFT JOIN SequenceMaster seq ON s.SequenceId = seq.SequenceId

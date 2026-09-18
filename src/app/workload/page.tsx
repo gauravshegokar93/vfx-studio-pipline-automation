@@ -127,6 +127,8 @@ export default function WorkloadPage() {
     };
   }, [workloads, allTasks]);
 
+  const [summaries, setSummaries] = useState<Record<number, any>>({});
+
   // Handle Artist Selection for Detailed Task Drawer
   const handleSelectArtist = async (item: ArtistWorkloadReportItem) => {
     setSelectedArtistItem(item);
@@ -134,6 +136,17 @@ export default function WorkloadPage() {
     try {
       const tasks = await taskService.getByArtist(item.artist.userId || item.artist.id);
       setArtistTasks(tasks);
+
+      const summaryPromises = tasks.map(t => taskService.getTaskTimeSummary(t.taskId));
+      const summaryResults = await Promise.all(summaryPromises);
+      const summaryMap: Record<number, any> = {};
+      summaryResults.forEach((s, idx) => {
+        if (s) {
+          summaryMap[tasks[idx].taskId] = s;
+        }
+      });
+      setSummaries(summaryMap);
+
     } catch (err) {
       console.error('[WorkloadPage] Error loading artist tasks:', err);
       toast({ title: 'Error', description: 'Failed to fetch artist tasks.', variant: 'destructive' });
@@ -396,24 +409,35 @@ export default function WorkloadPage() {
                             {item.overdueCount || '-'}
                           </TableCell>
                           <TableCell className="text-center text-[10px] font-mono">
-                            {(() => {
-                              const comps = (item.taskComplexities || '').split(',').filter(Boolean);
-                              const counts = comps.reduce((acc: Record<string, number>, c: string) => {
-                                acc[c] = (acc[c] || 0) + 1;
-                                return acc;
-                              }, {});
-                              return Object.entries(counts).map(([comp, count], i) => (
-                                <span key={i} className="mr-1 text-muted-foreground border border-muted-foreground/30 px-1 rounded-sm" title={comp}>
-                                  {count}{comp.charAt(0).toUpperCase()}
-                                </span>
-                              ));
-                            })()}
+                            <div className="flex flex-wrap gap-1 justify-center">
+                              {(() => {
+                                const comps = (item.taskComplexities || '').split(',').filter(Boolean);
+                                const counts = comps.reduce((acc: Record<string, number>, c: string) => {
+                                  acc[c] = (acc[c] || 0) + 1;
+                                  return acc;
+                                }, {});
+                                return Object.entries(counts).map(([comp, count], i) => (
+                                  <Badge key={i} variant="outline" className={cn(
+                                    "uppercase text-[9px] font-bold px-1 py-0",
+                                    comp.toLowerCase().includes('hard') ? "text-red-400 border-red-400/30 bg-red-400/10" :
+                                    comp.toLowerCase().includes('mid') ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" :
+                                    comp.toLowerCase().includes('easy') ? "text-green-400 border-green-400/30 bg-green-400/10" :
+                                    "text-blue-400 border-blue-400/30 bg-blue-400/10"
+                                  )}>
+                                    {count > 1 ? `${count}x ` : ''}{comp}
+                                  </Badge>
+                                ));
+                              })()}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs text-yellow-400 font-bold">
                             {formattedBid(item.targetBid)}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-emerald-400 font-bold">
-                            {formattedBid(item.actualBid)}
+                          <TableCell className="text-right py-3 px-4 font-mono">
+                            <div className="flex flex-col items-end">
+                              <span className="text-emerald-400 font-bold">{formattedBid(item.actualBid)} Bid</span>
+                              <span className="text-[10px] text-muted-foreground">{item.actualHours?.toFixed(1) || (item.actualBid * 8).toFixed(1)} hrs</span>
+                            </div>
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs text-crimson font-bold">
                             {formattedBid(item.remainingBid)}
@@ -510,8 +534,9 @@ export default function WorkloadPage() {
                       <p className="text-xl font-bold text-yellow-400 mt-0.5">{formattedBid(selectedArtistItem?.targetBid)}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Actual Worked</p>
-                      <p className="text-xl font-bold text-emerald-400 mt-0.5">{formattedBid(selectedArtistItem?.actualBid)}</p>
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Actual Worked Bid</p>
+                      <p className="text-xl font-bold text-emerald-400 mt-0.5">{formattedBid(selectedArtistItem?.actualBid)} Bid</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{selectedArtistItem?.actualHours?.toFixed(1) || (selectedArtistItem?.actualBid ? (selectedArtistItem.actualBid * 8).toFixed(1) : '0.0')} hrs</p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-muted-foreground">Remaining Bid</p>
@@ -524,31 +549,52 @@ export default function WorkloadPage() {
                       <FileText className="w-3.5 h-3.5" /> Assigned Task Breakdown ({artistTasks.length})
                     </h4>
                     <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
-                      {artistTasks.map((t) => (
+                      {artistTasks.map((t) => {
+                        const summary = summaries[t.taskId];
+                        const actualHrs = summary ? summary.actualWorkedHours : (t.actualHours || 0);
+                        const estBid = t.estimatedBid !== undefined && t.estimatedBid !== null ? t.estimatedBid : (t.estimatedHours ? t.estimatedHours / 8 : 0);
+                        const tgtBid = t.targetBid !== undefined && t.targetBid !== null ? t.targetBid : (t.targetHours ? t.targetHours / 8 : 0);
+
+                        return (
                         <div key={t.taskId} className="p-4 bg-sidebar-accent/30 rounded-xl border border-sidebar-border space-y-2">
                           <div className="flex justify-between items-start">
                             <div>
                               <p className="text-sm font-bold text-white font-mono">{t.taskCode}</p>
                               <p className="text-[10px] text-muted-foreground">{t.shotCode} ({t.stage})</p>
                             </div>
-                            <Badge className="text-[9px] uppercase bg-blue-500/20 text-blue-400">{t.status}</Badge>
+                            <div className="flex items-center gap-2">
+                                <Badge variant="outline" className={cn(
+                                  "uppercase text-[10px] font-bold",
+                                  t.complexity?.toLowerCase().includes('hard') ? "text-red-400 border-red-400/30 bg-red-400/10" :
+                                  t.complexity?.toLowerCase().includes('mid') ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" :
+                                  t.complexity?.toLowerCase().includes('easy') ? "text-green-400 border-green-400/30 bg-green-400/10" :
+                                  "text-blue-400 border-blue-400/30 bg-blue-400/10"
+                                )}>
+                                  {t.complexity || 'UNKNOWN-DB'}
+                                </Badge>
+                              <Badge className="text-[9px] uppercase bg-blue-500/20 text-blue-400">{t.status}</Badge>
+                            </div>
                           </div>
                           <div className="flex justify-between items-center pt-2 border-t border-sidebar-border/40 text-xs">
                             <div className="flex flex-col gap-1 font-mono text-[10px]">
                               <span className="flex items-center gap-1 text-muted-foreground">
-                                Est: {formattedBid(t.estimatedBid !== undefined && t.estimatedBid !== null ? t.estimatedBid : (t.estimatedHours ? t.estimatedHours / 8 : 0))}
-                                {(t.targetBid !== undefined && t.targetBid !== null ? t.targetBid : (t.targetHours ? t.targetHours / 8 : 0)) > (t.estimatedBid !== undefined && t.estimatedBid !== null ? t.estimatedBid : (t.estimatedHours ? t.estimatedHours / 8 : 0)) && (
+                                Est: {formattedBid(estBid)}
+                                {tgtBid > estBid && (
                                   <span title="Target exceeds Client Estimate"><AlertCircle className="w-3 h-3 text-red-500" /></span>
                                 )}
                               </span>
-                              <span className="text-yellow-400 font-bold">Tgt: {formattedBid(t.targetBid !== undefined && t.targetBid !== null ? t.targetBid : (t.targetHours ? t.targetHours / 8 : 0))}</span>
+                              <span className="text-yellow-400 font-bold">Tgt: {formattedBid(tgtBid)}</span>
+                              <span className="text-crimson font-bold mt-0.5 border-t border-sidebar-border/30 pt-0.5">
+                                Actual Logged = {actualHrs.toFixed(1)} hrs <span className="text-[9px] text-muted-foreground font-normal">({(actualHrs / 8).toFixed(2)} Bid)</span>
+                              </span>
                             </div>
                             <Button size="sm" variant="outline" className="h-6 text-[10px] border-sidebar-border hover:bg-yellow-500 hover:text-white transition-all px-2" onClick={() => handleOpenAdjustModal(t)}>
                               Adjust Target
                             </Button>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
 
                       {artistTasks.length === 0 && (
                         <div className="p-8 text-center text-muted-foreground text-xs italic">

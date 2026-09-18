@@ -331,27 +331,23 @@ export default function AnalyticsPage() {
               </Card>
 
               <Card className="bg-card border-sidebar-border p-4 flex flex-col justify-between shadow-lg">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase">Estimated Bid</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Estimated</p>
                 <h3 className="text-2xl font-headline font-bold text-white mt-1">{kpis?.estimatedBid} Bid</h3>
-                <p className="text-[10px] text-muted-foreground mt-2">Task Master Bid</p>
               </Card>
 
               <Card className="bg-card border-sidebar-border p-4 flex flex-col justify-between shadow-lg">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase">Target Bid</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Target</p>
                 <h3 className="text-2xl font-headline font-bold text-cyan-400 mt-1">{kpis?.allocatedTargetBid} Bid</h3>
-                <p className="text-[10px] text-muted-foreground mt-2">Allocated Target</p>
               </Card>
 
               <Card className="bg-card border-sidebar-border p-4 flex flex-col justify-between shadow-lg">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase">Actual Worked</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Actual Logged</p>
                 <h3 className="text-2xl font-headline font-bold text-green-400 mt-1">{kpis?.actualBid} Bid</h3>
-                <p className="text-[10px] text-muted-foreground mt-2">Time Log Consumption</p>
               </Card>
 
               <Card className="bg-card border-sidebar-border p-4 flex flex-col justify-between shadow-lg">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase">Remaining Bid</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Remaining</p>
                 <h3 className="text-2xl font-headline font-bold text-amber-400 mt-1">{kpis?.remainingBid} Bid</h3>
-                <p className="text-[10px] text-muted-foreground mt-2">Target - Actual</p>
               </Card>
             </div>
 
@@ -606,14 +602,15 @@ export default function AnalyticsPage() {
                       <th className="p-4">Artist</th>
                       <th className="p-4">Department</th>
                       <th className="p-4 text-center">Active Tasks</th>
+                      <th className="p-4 text-center">In Progress</th>
+                      <th className="p-4 text-center" title="Total Review Submissions">Reviews</th>
+                      <th className="p-4 text-center" title="Total Rework Instances">Reworks</th>
+                      <th className="p-4 text-center">Completed</th>
+                      <th className="p-4 text-center">Overdue</th>
+                      <th className="p-4 text-center">Complexity</th>
                       <th className="p-4 text-right">Target Bid</th>
                       <th className="p-4 text-right">Actual Bid</th>
                       <th className="p-4 text-right">Remaining Bid</th>
-                      <th className="p-4 text-center">In Progress</th>
-                      <th className="p-4 text-center">Review</th>
-                      <th className="p-4 text-center">Rework</th>
-                      <th className="p-4 text-center">Completed</th>
-                      <th className="p-4 text-center">Overdue</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-sidebar-border/50 font-medium">
@@ -625,22 +622,44 @@ export default function AnalyticsPage() {
                         </td>
                         <td className="p-4 text-muted-foreground">{a.department}</td>
                         <td className="p-4 text-center font-bold text-white">{a.activeTasks}</td>
-                        <td className="p-4 text-right font-bold text-purple-400">{a.targetBid} Bid</td>
-                        <td className="p-4 text-right font-bold text-green-400">{a.actualBid} Bid</td>
-                        <td className="p-4 text-right font-bold text-amber-400">{a.remainingBid} Bid</td>
-                        <td className="p-4 text-center">{a.inProgress}</td>
-                        <td className="p-4 text-center text-yellow-400">{a.review}</td>
-                        <td className="p-4 text-center text-red-400">{a.rework}</td>
-                        <td className="p-4 text-center text-green-400">{a.completed}</td>
+                        <td className="p-4 text-center text-blue-400 font-bold">{a.inProgress || '-'}</td>
+                        <td className="p-4 text-center text-amber-400 font-bold">{a.reviewSubmissions || '-'}</td>
+                        <td className="p-4 text-center text-purple-400 font-bold">{a.historicalReworkCount || '-'}</td>
+                        <td className="p-4 text-center text-green-400 font-bold">{a.completed || '-'}</td>
                         <td className="p-4 text-center">
                           {a.overdue > 0 ? (
                             <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">
                               {a.overdue}
                             </Badge>
                           ) : (
-                            <span className="text-muted-foreground">-</span>
+                            <span className="text-muted-foreground font-bold">-</span>
                           )}
                         </td>
+                        <td className="p-4 text-center text-[10px] font-mono">
+                          <div className="flex flex-wrap gap-1 justify-center">
+                            {(() => {
+                              const comps = (a.taskComplexities || '').split(',').filter(Boolean);
+                              const counts = comps.reduce((acc: Record<string, number>, c: string) => {
+                                acc[c] = (acc[c] || 0) + 1;
+                                return acc;
+                              }, {});
+                              return Object.entries(counts).map(([comp, count], i) => (
+                                <Badge key={i} variant="outline" className={cn(
+                                  "uppercase text-[9px] font-bold px-1 py-0",
+                                  comp.toLowerCase().includes('hard') ? "text-red-400 border-red-400/30 bg-red-400/10" :
+                                  comp.toLowerCase().includes('mid') ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" :
+                                  comp.toLowerCase().includes('easy') ? "text-green-400 border-green-400/30 bg-green-400/10" :
+                                  "text-blue-400 border-blue-400/30 bg-blue-400/10"
+                                )}>
+                                  {count > 1 ? `${count}x ` : ''}{comp}
+                                </Badge>
+                              ));
+                            })()}
+                          </div>
+                        </td>
+                        <td className="p-4 text-right font-bold text-yellow-400 font-mono">{a.targetBid} Bid</td>
+                        <td className="p-4 text-right font-bold text-emerald-400 font-mono">{a.actualBid} Bid</td>
+                        <td className="p-4 text-right font-bold text-crimson font-mono">{a.remainingBid} Bid</td>
                       </tr>
                     ))}
                   </tbody>

@@ -4,7 +4,8 @@ const {
   getDepartmentProgressReport, 
   getArtistWorkloadReport, 
   getOverdueTasksReport,
-  getAnalyticsReport
+  getAnalyticsReport,
+  getEmployeePerformanceReport
 } = require('../services/reportsService');
 
 const secured = (handler) => authMiddleware(['dashboard.view', 'reports.view', 'Production Head', 'Department Supervisor', 'Lead', 'Artist', 'Super Admin', 'Admin'], handler);
@@ -92,11 +93,32 @@ async function getAnalytics(req, res) {
   }
 }
 
+async function getEmployeePerformance(req, res) {
+  try {
+    const { artistId } = req.params;
+    
+    if (!artistId || isNaN(parseInt(artistId, 10))) {
+      return res.status(400).json({ success: false, message: 'Invalid artistId parameter.' });
+    }
+
+    const data = await getEmployeePerformanceReport(parseInt(artistId, 10));
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error('[getEmployeePerformance] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch employee performance data',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   getExecutiveDashboard: secured(getExecutiveDashboard),
   getDepartmentProgress: secured(getDepartmentProgress),
   getArtistWorkload: secured(getArtistWorkload),
   getOverdueTasks: secured(getOverdueTasks),
-  getAnalytics: secured(getAnalytics)
+  getAnalytics: secured(getAnalytics),
+  getEmployeePerformance: secured(getEmployeePerformance)
 };
 
