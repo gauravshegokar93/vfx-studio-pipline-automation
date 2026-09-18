@@ -129,6 +129,9 @@ export interface ArtistWorkloadReportItem {
   targetBid: number;
   actualBid: number;
   remainingBid: number;
+  estimatedHours?: number;
+  targetHours?: number;
+  actualHours?: number;
 }
 
 export interface OverdueTaskItem {

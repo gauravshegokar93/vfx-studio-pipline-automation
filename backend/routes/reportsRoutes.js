@@ -5,7 +5,8 @@ const {
   getDepartmentProgress, 
   getArtistWorkload, 
   getOverdueTasks,
-  getAnalytics
+  getAnalytics,
+  getEmployeePerformance
 } = require('../controllers/reportsController');
 
 router.get('/dashboard', getExecutiveDashboard);
@@ -13,6 +14,6 @@ router.get('/department-progress', getDepartmentProgress);
 router.get('/artist-workload', getArtistWorkload);
 router.get('/overdue-tasks', getOverdueTasks);
 router.get('/analytics', getAnalytics);
+router.get('/employee-performance/:artistId', getEmployeePerformance);
 
 module.exports = router;
-

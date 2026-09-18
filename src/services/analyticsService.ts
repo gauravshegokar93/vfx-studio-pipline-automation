@@ -83,6 +83,9 @@ export interface ArtistWorkloadRow {
   rework: number;
   completed: number;
   overdue: number;
+  reviewSubmissions?: number;
+  historicalReworkCount?: number;
+  taskComplexities?: string;
 }
 
 export interface ProductionTrendItem {
