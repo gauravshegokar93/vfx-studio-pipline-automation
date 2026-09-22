@@ -8,44 +8,46 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { 
-  Users, 
-  Clock, 
-  CheckCircle, 
-  AlertCircle, 
-  Search, 
-  UserCheck, 
-  Briefcase, 
-  RefreshCw, 
-  ChevronRight, 
+import {
+  Users,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Search,
+  UserCheck,
+  Briefcase,
+  RefreshCw,
+  ChevronRight,
   UserCircle,
   FileText,
   Filter,
-  AlertTriangle
+  AlertTriangle,
+  PlusCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogFooter,
   DialogDescription
 } from '@/components/ui/dialog';
-import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
-  SheetDescription 
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription
 } from '@/components/ui/sheet';
 import { toast } from '@/hooks/use-toast';
-import { 
-  taskService, 
-  TaskItem, 
-  UserItem, 
-  DepartmentItem, 
-  ArtistWorkloadReportItem 
+import {
+  taskService,
+  TaskItem,
+  UserItem,
+  DepartmentItem,
+  ArtistWorkloadReportItem
 } from '@/services/taskService';
 
 export default function WorkloadPage() {
@@ -67,8 +69,8 @@ export default function WorkloadPage() {
   // Task Assignment Dialog state
   const [assignModalOpen, setAssignModalOpen] = useState<boolean>(false);
   const [selectedTaskToAssign, setSelectedTaskToAssign] = useState<TaskItem | null>(null);
-  const [targetArtist, setTargetArtist] = useState<UserItem | null>(null);
-  const [targetBid, setTargetBid] = useState<number>(0);
+  const [newAllocations, setNewAllocations] = useState<{ artist: UserItem; targetBid: number }[]>([]);
+  const [targetBid, setTargetBid] = useState<number>(0); // Used by adjust target modal
   const [remarks, setRemarks] = useState<string>('');
   const [submittingAssign, setSubmittingAssign] = useState<boolean>(false);
 
@@ -137,7 +139,8 @@ export default function WorkloadPage() {
       const tasks = await taskService.getByArtist(item.artist.userId || item.artist.id);
       setArtistTasks(tasks);
 
-      const summaryPromises = tasks.map(t => taskService.getTaskTimeSummary(t.taskId));
+      // Calculate Time Analytics per artist
+      const summaryPromises = tasks.map(t => taskService.getTaskTimeSummary(t.taskId, item.artist.userId || item.artist.id));
       const summaryResults = await Promise.all(summaryPromises);
       const summaryMap: Record<number, any> = {};
       summaryResults.forEach((s, idx) => {
@@ -155,40 +158,56 @@ export default function WorkloadPage() {
     }
   };
 
-  // Open Assign Modal for Unassigned Task
+  // Open Assign Modal for Unassigned or Assigned Task
   const handleOpenAssignModal = (task: TaskItem) => {
     setSelectedTaskToAssign(task);
-    setTargetArtist(null);
-    const initialBid = task.targetBid !== undefined && task.targetBid !== null 
-      ? task.targetBid 
-      : (task.estimatedBid !== undefined && task.estimatedBid !== null ? task.estimatedBid : (task.estimatedHours ? task.estimatedHours / 8 : 0));
-    setTargetBid(initialBid);
+    setNewAllocations([]);
     setRemarks('');
     setAssignModalOpen(true);
   };
 
   // Execute Assignment
   const handleConfirmAssignment = async () => {
-    if (!selectedTaskToAssign || !targetArtist) {
-      toast({ title: 'Validation Error', description: 'Please select a task and an artist.', variant: 'destructive' });
+    if (!selectedTaskToAssign || newAllocations.length === 0) {
+      toast({ title: 'Validation Error', description: 'Please select at least one artist and enter their target bid.', variant: 'destructive' });
+      return;
+    }
+
+    const validAllocations = newAllocations.filter(a => a.targetBid > 0);
+    if (validAllocations.length === 0) {
+      toast({ title: 'Validation Error', description: 'Selected artists must have a target bid greater than 0.', variant: 'destructive' });
       return;
     }
 
     setSubmittingAssign(true);
-    const res = await taskService.assignTask({
-      taskId: selectedTaskToAssign.taskId,
-      userId: targetArtist.userId || targetArtist.id,
-      targetBid: targetBid,
-      remarks: remarks
-    });
+    let allSuccess = true;
+    let anySuccess = false;
+
+    await Promise.all(validAllocations.map(async (alloc) => {
+      const res = await taskService.assignTask({
+        taskId: selectedTaskToAssign.taskId,
+        userId: alloc.artist.userId || alloc.artist.id,
+        targetBid: alloc.targetBid,
+        remarks: remarks
+      });
+      if (!res.success) {
+        allSuccess = false;
+        toast({ title: `Failed for ${alloc.artist.fullName}`, description: res.message, variant: 'destructive' });
+      } else {
+        anySuccess = true;
+      }
+    }));
+
     setSubmittingAssign(false);
 
-    if (res.success) {
-      toast({ title: 'Task Assigned', description: `${selectedTaskToAssign.taskCode} assigned to ${targetArtist.fullName}.` });
+    if (allSuccess) {
+      toast({ title: 'Task Assigned', description: `Successfully assigned ${validAllocations.length} artist(s).` });
       setAssignModalOpen(false);
       loadMasterData();
-    } else {
-      toast({ title: 'Assignment Failed', description: res.message, variant: 'destructive' });
+    } else if (anySuccess) {
+      toast({ title: 'Partial Success', description: `Some assignments failed. The view will refresh.` });
+      setAssignModalOpen(false);
+      loadMasterData();
     }
   };
 
@@ -203,7 +222,9 @@ export default function WorkloadPage() {
     if (!selectedTaskToAdjust) return;
     setAdjustingTarget(true);
     try {
+      const uId = selectedTaskToAdjust.assignedArtistId || selectedArtistItem?.artist?.userId || selectedArtistItem?.artist?.id || 0;
       await taskService.adjustTarget(selectedTaskToAdjust.taskId, {
+        userId: Number(uId),
         targetBid: targetBid,
         remarks: remarks
       });
@@ -371,8 +392,8 @@ export default function WorkloadPage() {
                       const hasOverdue = item.overdueCount > 0;
 
                       return (
-                        <TableRow 
-                          key={artist.userId || artist.id} 
+                        <TableRow
+                          key={artist.userId || artist.id}
                           className="border-sidebar-border hover:bg-sidebar-accent/30 h-16 cursor-pointer transition-colors"
                           onClick={() => handleSelectArtist(item)}
                         >
@@ -588,9 +609,14 @@ export default function WorkloadPage() {
                                 Actual Logged = {actualHrs.toFixed(1)} hrs <span className="text-[9px] text-muted-foreground font-normal">({(actualHrs / 8).toFixed(2)} Bid)</span>
                               </span>
                             </div>
-                            <Button size="sm" variant="outline" className="h-6 text-[10px] border-sidebar-border hover:bg-yellow-500 hover:text-white transition-all px-2" onClick={() => handleOpenAdjustModal(t)}>
-                              Adjust Target
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" className="h-6 text-[10px] border-sidebar-border hover:bg-emerald-500 hover:text-white transition-all px-2" onClick={() => handleOpenAssignModal(t)}>
+                                Assign Artist
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-6 text-[10px] border-sidebar-border hover:bg-yellow-500 hover:text-white transition-all px-2" onClick={() => handleOpenAdjustModal(t)}>
+                                Adjust Target
+                              </Button>
+                            </div>
                           </div>
                         </div>
                         );
@@ -621,89 +647,156 @@ export default function WorkloadPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-5 py-3">
-              <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border flex justify-between items-center text-xs">
-                <div>
-                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Shot / Stage</p>
-                  <p className="text-white font-bold">{selectedTaskToAssign?.shotCode} — {selectedTaskToAssign?.stage}</p>
-                </div>
-                {selectedTaskToAssign?.complexity && (
-                  <div className="text-center">
-                    <p className="text-muted-foreground uppercase font-bold text-[10px]">Complexity</p>
-                    <Badge variant="outline" className={cn(
-                      "uppercase text-[10px] font-bold mt-0.5",
-                      selectedTaskToAssign.complexity.toLowerCase().includes('hard') ? "text-red-400 border-red-400/30 bg-red-400/10" :
-                      selectedTaskToAssign.complexity.toLowerCase().includes('mid') ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10" :
-                      selectedTaskToAssign.complexity.toLowerCase().includes('easy') ? "text-green-400 border-green-400/30 bg-green-400/10" :
-                      "text-blue-400 border-blue-400/30 bg-blue-400/10"
-                    )}>
-                      {selectedTaskToAssign.complexity}
-                    </Badge>
+            {(() => {
+              const taskBid = selectedTaskToAssign?.estimatedBid !== undefined && selectedTaskToAssign?.estimatedBid !== null ? selectedTaskToAssign.estimatedBid : (selectedTaskToAssign?.estimatedHours ? selectedTaskToAssign.estimatedHours / 8 : 0);
+              let assignedList: any[] = [];
+              if (selectedTaskToAssign?.assignmentsJson) {
+                try {
+                  assignedList = JSON.parse(selectedTaskToAssign.assignmentsJson);
+                } catch (e) {}
+              }
+              const allocatedBid = assignedList.reduce((acc, curr) => acc + ((curr.targetHours || 0) / 8), 0);
+              const remainingBid = Math.max(0, taskBid - allocatedBid);
+
+              // We should disable artists that are already assigned
+              const assignedUserIds = new Set(assignedList.map(a => a.userId));
+
+              return (
+                <div className="space-y-5 py-3">
+                  <div className="bg-sidebar-accent/50 p-4 rounded-xl border border-sidebar-border grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <p className="text-muted-foreground uppercase font-bold text-[10px]">Shot / Stage</p>
+                      <p className="text-white font-bold">{selectedTaskToAssign?.shotCode} — {selectedTaskToAssign?.stage}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-muted-foreground uppercase font-bold text-[10px]">Allocated / Task Bid</p>
+                      <p className="font-mono font-bold text-yellow-400">
+                        {allocatedBid.toFixed(2)} / {taskBid.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-muted-foreground uppercase font-bold text-[10px]">Remaining Bid</p>
+                      <p className={cn("font-mono font-bold", remainingBid > 0 ? "text-emerald-400" : "text-red-400")}>{remainingBid.toFixed(2)}</p>
+                    </div>
                   </div>
-                )}
-                <div className="text-right">
-                  <p className="text-muted-foreground uppercase font-bold text-[10px]">Estimated Bid</p>
-                  <p className="text-crimson font-mono font-bold">{formattedBid(selectedTaskToAssign ? (selectedTaskToAssign.estimatedBid !== undefined && selectedTaskToAssign.estimatedBid !== null ? selectedTaskToAssign.estimatedBid : (selectedTaskToAssign.estimatedHours ? selectedTaskToAssign.estimatedHours / 8 : 0)) : 0)}</p>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs uppercase font-bold text-muted-foreground">Select Active Artist</Label>
-                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
-                  {activeArtistsList.map((artist) => {
-                    const isSelected = !!targetArtist && (
-                      (targetArtist.userId !== undefined && targetArtist.userId === artist.userId) ||
-                      (targetArtist.id !== undefined && targetArtist.id === artist.id)
-                    );
-                    return (
-                      <div
-                        key={artist.userId || artist.id}
-                        className={cn(
-                          "p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between text-xs",
-                          isSelected ? "bg-emerald-500/10 border-emerald-500 ring-1 ring-emerald-500 text-white" : "bg-sidebar-accent/40 border-sidebar-border text-muted-foreground hover:border-emerald-500/50"
-                        )}
-                        onClick={() => setTargetArtist(artist)}
-                      >
-                        <div>
-                          <p className="font-bold text-white">{artist.fullName}</p>
-                          <p className="text-[10px] text-muted-foreground">{artist.employeeCode} • {artist.departmentName || 'Artist'}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {isSelected && <span className="text-emerald-500 font-bold text-[10px] uppercase">Selected</span>}
-                          {isSelected ? (
-                            <CheckCircle className="w-5 h-5 text-emerald-500" />
-                          ) : (
-                            <div className="w-5 h-5 rounded-full border border-sidebar-border" />
-                          )}
-                        </div>
+                  {assignedList.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase font-bold text-muted-foreground">Current Assignments</Label>
+                      <div className="space-y-1">
+                        {assignedList.map((assign, idx) => (
+                          <div key={idx} className="flex justify-between items-center bg-sidebar-accent/30 p-2 rounded border border-sidebar-border text-xs">
+                            <div className="flex items-center gap-2">
+                              <UserCircle className="w-4 h-4 text-blue-400" />
+                              <span className="text-white font-bold">{assign.artistName}</span>
+                            </div>
+                            <Badge variant="outline" className="border-sidebar-border text-yellow-400">
+                              {((assign.targetHours || 0) / 8).toFixed(2)} Bid
+                            </Badge>
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                    </div>
+                  )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground uppercase font-bold">Target Bid</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    className="bg-sidebar-accent border-sidebar-border text-white text-sm font-mono"
-                    value={targetBid}
-                    onChange={(e) => setTargetBid(parseFloat(e.target.value) || 0)}
-                  />
+                  {remainingBid > 0 ? (
+                    <div className="space-y-4 pt-2 border-t border-sidebar-border/50">
+                      <Label className="text-xs uppercase font-bold text-emerald-400 flex items-center gap-2"><PlusCircle className="w-4 h-4"/> Select Active Artists</Label>
+                      <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
+                        {activeArtistsList.map((artist) => {
+                          const uId = artist.userId || artist.id;
+                          const isAssigned = assignedUserIds.has(uId);
+                          const isSelected = newAllocations.some(a => (a.artist.userId || a.artist.id) === uId);
+                          return (
+                            <div
+                              key={uId}
+                              className={cn(
+                                "p-2 rounded border transition-all flex items-center justify-between text-xs",
+                                isAssigned ? "opacity-50 bg-black/20 border-sidebar-border cursor-not-allowed" :
+                                isSelected ? "bg-emerald-500/10 border-emerald-500 ring-1 ring-emerald-500 text-white cursor-pointer" : "bg-sidebar-accent/40 border-sidebar-border text-muted-foreground hover:border-emerald-500/50 cursor-pointer"
+                              )}
+                              onClick={() => {
+                                if (isAssigned) return;
+                                if (isSelected) {
+                                  setNewAllocations(prev => prev.filter(a => (a.artist.userId || a.artist.id) !== uId));
+                                } else {
+                                  setNewAllocations(prev => [...prev, { artist, targetBid: 0 }]);
+                                }
+                              }}
+                            >
+                              <div>
+                                <p className="font-bold text-white">{artist.fullName}</p>
+                                <p className="text-[10px] text-muted-foreground">{artist.employeeCode} • {artist.departmentName || 'Artist'}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {isAssigned ? (
+                                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Assigned</span>
+                                ) : isSelected ? (
+                                  <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <div className="w-4 h-4 rounded-full border border-sidebar-border" />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {newAllocations.length > 0 && (
+                        <div className="space-y-3 pt-2">
+                          <Label className="text-xs uppercase font-bold text-emerald-400 border-b border-sidebar-border/50 pb-1 block">Set Target Bids</Label>
+                          {newAllocations.map((alloc) => {
+                            const uId = alloc.artist.userId || alloc.artist.id;
+                            const otherPending = newAllocations.filter(a => (a.artist.userId || a.artist.id) !== uId).reduce((acc, curr) => acc + curr.targetBid, 0);
+                            const maxAllowed = remainingBid - otherPending;
+
+                            return (
+                              <div key={uId} className="grid grid-cols-3 gap-3 items-center bg-sidebar-accent/30 p-2 rounded border border-sidebar-border">
+                                <div className="col-span-1">
+                                  <p className="text-xs font-bold text-white">{alloc.artist.fullName}</p>
+                                </div>
+                                <div className="col-span-2">
+                                  <Input
+                                    type="number"
+                                    step="0.1"
+                                    max={maxAllowed}
+                                    min="0"
+                                    className="bg-sidebar-accent border-sidebar-border text-white text-xs h-7 font-mono"
+                                    placeholder={`Max: ${Math.max(0, maxAllowed).toFixed(2)}`}
+                                    value={alloc.targetBid || ''}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      const cappedVal = Math.min(val, Math.max(0, maxAllowed));
+                                      setNewAllocations(prev => prev.map(a => (a.artist.userId || a.artist.id) === uId ? { ...a, targetBid: cappedVal } : a));
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <div className="space-y-2 mt-4">
+                        <Label className="text-xs text-muted-foreground uppercase font-bold">Remarks (Optional)</Label>
+                        <Input
+                          className="bg-sidebar-accent border-sidebar-border text-white text-sm"
+                          placeholder="e.g. Additional support"
+                          value={remarks}
+                          onChange={(e) => setRemarks(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                      <p className="text-emerald-400 font-bold text-sm">Fully Allocated</p>
+                      <p className="text-xs text-emerald-500/70">Task bid is completely assigned.</p>
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground uppercase font-bold">Remarks (Optional)</Label>
-                  <Input
-                    className="bg-sidebar-accent border-sidebar-border text-white text-sm"
-                    placeholder="e.g. Workload allocation pass"
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             <DialogFooter className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setAssignModalOpen(false)}>Cancel</Button>
@@ -773,11 +866,11 @@ export default function WorkloadPage() {
               <div className="space-y-3">
                 <Label className="text-xs uppercase font-bold text-muted-foreground">New Target Allocation (Bid)</Label>
                 <div className="relative">
-                  <Input 
-                    type="number" 
-                    step="0.01" 
+                  <Input
+                    type="number"
+                    step="0.01"
                     min="0"
-                    value={targetBid} 
+                    value={targetBid}
                     onChange={(e) => setTargetBid(parseFloat(e.target.value) || 0)}
                     className="bg-sidebar-accent/40 border-sidebar-border text-white text-lg font-mono py-6 pl-4 font-bold rounded-xl"
                   />
@@ -787,7 +880,7 @@ export default function WorkloadPage() {
 
               <div className="space-y-3">
                 <Label className="text-xs uppercase font-bold text-muted-foreground">Remarks (Optional)</Label>
-                <textarea 
+                <textarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   className="w-full bg-sidebar-accent/40 border-sidebar-border text-white text-sm p-3 rounded-xl min-h-[80px] focus:outline-none focus:ring-1 focus:ring-crimson resize-none"

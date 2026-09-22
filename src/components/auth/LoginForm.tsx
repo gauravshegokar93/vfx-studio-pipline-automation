@@ -58,36 +58,13 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
 
   // Caps Lock detection for password field
   const handlePasswordKeyEvent = useCallback(
-    (event: KeyboardEvent) => {
-      const passwordInput = document.getElementById("login-password");
-      if (passwordInput && document.activeElement === passwordInput) {
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event && typeof event.getModifierState === "function") {
         setIsCapsLockOn(event.getModifierState("CapsLock"));
       }
     },
     []
   );
-
-  useEffect(() => {
-    const passwordInput = document.getElementById("login-password");
-    if (passwordInput) {
-      passwordInput.addEventListener("keyup", handlePasswordKeyEvent);
-      passwordInput.addEventListener("keydown", handlePasswordKeyEvent);
-      return () => {
-        passwordInput.removeEventListener("keyup", handlePasswordKeyEvent);
-        passwordInput.removeEventListener("keydown", handlePasswordKeyEvent);
-      };
-    }
-  }, [handlePasswordKeyEvent]);
-
-  // Hide Caps Lock warning when password field loses focus
-  useEffect(() => {
-    const passwordInput = document.getElementById("login-password");
-    if (passwordInput) {
-      const handleBlur = () => setIsCapsLockOn(false);
-      passwordInput.addEventListener("blur", handleBlur);
-      return () => passwordInput.removeEventListener("blur", handleBlur);
-    }
-  }, []);
 
   const handleFormSubmit = (data: LoginFormData) => {
     onSubmit(data);
@@ -155,7 +132,13 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
                     aria-required="true"
                     aria-label="Password"
                     aria-invalid={!!passwordError}
+                    onKeyDown={handlePasswordKeyEvent}
+                    onKeyUp={handlePasswordKeyEvent}
                     {...field}
+                    onBlur={(e) => {
+                      field.onBlur();
+                      setIsCapsLockOn(false);
+                    }}
                   />
                 </FormControl>
                 <button

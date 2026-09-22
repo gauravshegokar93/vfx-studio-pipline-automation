@@ -14,17 +14,20 @@ async function validateTaskOwnership(pool, taskId, authUserId) {
   const request = pool.request();
   request.input('TaskId', sql.BigInt, taskId);
 
+  request.input('AuthUserId', sql.BigInt, authUserId);
+
   const taskQuery = await request.query(`
-    SELECT 
-      t.TaskID, 
-      t.TaskCode, 
+    SELECT
+      t.TaskID,
+      t.TaskCode,
       t.TaskName,
-      t.StatusID, 
+      t.StatusID,
       ISNULL(st.StatusName, 'Unassigned') AS StatusName,
-      ta.UserID AS AssignedUserID
+      (SELECT CASE WHEN EXISTS (
+         SELECT 1 FROM TaskAssignment ta WHERE ta.TaskID = t.TaskID AND ta.UserID = @AuthUserId
+      ) THEN 1 ELSE 0 END) AS IsAssignedToUser
     FROM TaskMaster t
     LEFT JOIN StatusMaster st ON t.StatusID = st.StatusId
-    LEFT JOIN TaskAssignment ta ON t.TaskID = ta.TaskID
     WHERE t.TaskID = @TaskId AND t.IsActive = 1 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
   `);
 
@@ -44,11 +47,7 @@ async function validateTaskOwnership(pool, taskId, authUserId) {
     return { valid: false, httpCode: 400, error: 'INVALID_STATUS_TRANSITION', message: 'Task is currently under review.' };
   }
 
-  if (!task.AssignedUserID) {
-    return { valid: false, httpCode: 403, error: 'TASK_NOT_ASSIGNED', message: 'Task has not been assigned to an artist.' };
-  }
-
-  if (parseInt(task.AssignedUserID, 10) !== parseInt(authUserId, 10)) {
+  if (task.IsAssignedToUser !== 1) {
     return { valid: false, httpCode: 403, error: 'NOT_TASK_OWNER', message: 'You are not assigned to work on this task.' };
   }
 
@@ -85,7 +84,7 @@ async function startTimerSession(req, res) {
       checkReq.input('UserId', sql.BigInt, authUserId);
 
       const existingOpen = await checkReq.query(`
-        SELECT TOP 1 TimeLogID, StartTime 
+        SELECT TOP 1 TimeLogID, StartTime
         FROM TimeLog WITH (UPDLOCK, HOLDLOCK)
         WHERE TaskID = @TaskId AND UserID = @UserId AND EndTime IS NULL
       `);
@@ -117,9 +116,25 @@ async function startTimerSession(req, res) {
       const updateStatusReq = new sql.Request(transaction);
       updateStatusReq.input('TaskId', sql.BigInt, parsedTaskId);
       await updateStatusReq.query(`
-        UPDATE TaskMaster 
-        SET StatusID = 2 
+        UPDATE TaskMaster
+        SET StatusID = 2
         WHERE TaskID = @TaskId AND (StatusID IS NULL OR StatusID != 2)
+      `);
+
+      // Update specific user assignment status to 2 (In Progress) if currently 1 (Assigned) or 5 (Rework)
+      const updateAssignmentReq = new sql.Request(transaction);
+      updateAssignmentReq.input('TaskId', sql.BigInt, parsedTaskId);
+      updateAssignmentReq.input('UserId', sql.BigInt, authUserId);
+      await updateAssignmentReq.query(`
+        UPDATE TaskAssignment
+        SET StatusID = 2
+        WHERE AssignmentID = (
+          SELECT TOP 1 AssignmentID
+          FROM TaskAssignment
+          WHERE TaskID = @TaskId AND UserID = @UserId
+          ORDER BY AssignmentID DESC
+        )
+        AND StatusID IN (1, 5);
       `);
 
       await transaction.commit();
@@ -177,7 +192,7 @@ async function stopTimerSession(req, res) {
       openReq.input('UserId', sql.BigInt, authUserId);
 
       const openResult = await openReq.query(`
-        SELECT TOP 1 TimeLogID, StartTime 
+        SELECT TOP 1 TimeLogID, StartTime
         FROM TimeLog WITH (UPDLOCK, HOLDLOCK)
         WHERE TaskID = @TaskId AND UserID = @UserId AND EndTime IS NULL
         ORDER BY TimeLogID DESC
@@ -201,9 +216,9 @@ async function stopTimerSession(req, res) {
         DECLARE @Now DATETIME2 = GETDATE();
         DECLARE @Start DATETIME2;
         SELECT @Start = StartTime FROM TimeLog WHERE TimeLogID = @TimeLogId;
-        
+
         DECLARE @Seconds INT = DATEDIFF(SECOND, @Start, @Now);
-        DECLARE @Hours DECIMAL(10,2) = CASE 
+        DECLARE @Hours DECIMAL(10,2) = CASE
           WHEN @Seconds <= 0 THEN 0.00
           WHEN CAST(@Seconds AS DECIMAL(10,2)) / 3600.00 < 0.01 THEN 0.01
           ELSE ROUND(CAST(@Seconds AS DECIMAL(10,2)) / 3600.00, 2)
@@ -320,7 +335,7 @@ async function getTimeLogsByTask(req, res) {
     request.input('TaskId', sql.BigInt, parsedTaskId);
 
     const result = await request.query(`
-      SELECT 
+      SELECT
         tl.TimeLogID AS timeLogId,
         tl.TimeLogID AS id,
         tl.TaskID AS taskId,
@@ -351,7 +366,9 @@ async function getTimeLogsByTask(req, res) {
 async function getTimeLogSummary(req, res) {
   try {
     const { taskId } = req.params;
+    const { userId } = req.query;
     const parsedTaskId = parseInt(taskId, 10);
+    const parsedUserId = parseInt(userId, 10);
 
     if (isNaN(parsedTaskId)) {
       return res.status(400).json({ error: 'INVALID_TASK_ID', message: 'Invalid taskId' });
@@ -360,9 +377,12 @@ async function getTimeLogSummary(req, res) {
     const pool = await sql.connect(config);
     const request = pool.request();
     request.input('TaskId', sql.BigInt, parsedTaskId);
+    if (!isNaN(parsedUserId)) {
+      request.input('UserId', sql.BigInt, parsedUserId);
+    }
 
-    const taskQuery = await request.query(`
-      SELECT 
+    const taskQueryStr = !isNaN(parsedUserId) ? `
+      SELECT
         t.TaskID AS taskId,
         t.EstimatedHours AS estimatedHours,
         (t.EstimatedHours / 8.0) AS estimatedBid,
@@ -370,9 +390,21 @@ async function getTimeLogSummary(req, res) {
         (ta.TargetHours / 8.0) AS targetBid,
         ta.UserID AS assignedArtistId
       FROM TaskMaster t
-      LEFT JOIN TaskAssignment ta ON t.TaskID = ta.TaskID
+      LEFT JOIN TaskAssignment ta ON t.TaskID = ta.TaskID AND ta.UserID = @UserId
       WHERE t.TaskID = @TaskId AND t.IsActive = 1 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
-    `);
+    ` : `
+      SELECT
+        t.TaskID AS taskId,
+        t.EstimatedHours AS estimatedHours,
+        (t.EstimatedHours / 8.0) AS estimatedBid,
+        (SELECT SUM(TargetHours) FROM TaskAssignment WHERE TaskID = t.TaskID) AS targetHours,
+        ((SELECT SUM(TargetHours) FROM TaskAssignment WHERE TaskID = t.TaskID) / 8.0) AS targetBid,
+        NULL AS assignedArtistId
+      FROM TaskMaster t
+      WHERE t.TaskID = @TaskId AND t.IsActive = 1 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
+    `;
+
+    const taskQuery = await request.query(taskQueryStr);
 
     if (!taskQuery.recordset || taskQuery.recordset.length === 0) {
       return res.status(404).json({ error: 'TASK_NOT_FOUND', message: `Task ${parsedTaskId} not found or inactive.` });
@@ -382,19 +414,23 @@ async function getTimeLogSummary(req, res) {
 
     const logsReq = pool.request();
     logsReq.input('TaskId', sql.BigInt, parsedTaskId);
+    if (!isNaN(parsedUserId)) {
+      logsReq.input('UserId', sql.BigInt, parsedUserId);
+    }
+
     const logsRes = await logsReq.query(`
-      SELECT 
+      SELECT
         TimeLogID AS timeLogId,
         UserID AS userId,
         StartTime AS startTime,
         EndTime AS endTime,
         HoursWorked AS hoursWorked,
-        CASE 
+        CASE
           WHEN EndTime IS NULL THEN DATEDIFF(SECOND, StartTime, GETDATE())
           ELSE NULL
         END AS currentElapsedSeconds
       FROM TimeLog
-      WHERE TaskID = @TaskId
+      WHERE TaskID = @TaskId ${!isNaN(parsedUserId) ? 'AND UserID = @UserId' : ''}
     `);
 
     const sessions = logsRes.recordset || [];

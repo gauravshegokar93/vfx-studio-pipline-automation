@@ -35,11 +35,11 @@ import {
 import { useLuminaStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  taskService, 
-  TaskReviewQueueItem, 
-  TaskReviewItem, 
-  TaskReworkItem 
+import {
+  taskService,
+  TaskReviewQueueItem,
+  TaskReviewItem,
+  TaskReworkItem
 } from '@/services/taskService';
 
 export default function ReviewQueuePage() {
@@ -125,9 +125,9 @@ export default function ReviewQueuePage() {
     setReworking(false);
 
     if (res.success) {
-      toast({ 
-        title: 'Rework Requested', 
-        description: `Task ${selectedItem.taskCode} has been sent back to artist for Rework Round #${res.reworkRound || 1}.` 
+      toast({
+        title: 'Rework Requested',
+        description: `Task ${selectedItem.taskCode} has been sent back to artist for Rework Round #${res.reworkRound || 1}.`
       });
       setReworkModalOpen(false);
       setSelectedItem(null);
@@ -191,7 +191,7 @@ export default function ReviewQueuePage() {
               </TableHeader>
               <TableBody>
                 {queue.map((item) => (
-                  <TableRow key={item.taskId} className="border-sidebar-border h-20 transition-all hover:bg-sidebar-accent/20">
+                  <TableRow key={`review-queue-${item.reviewId || item.taskId}`} className="border-sidebar-border h-20 transition-all hover:bg-sidebar-accent/20">
                     <TableCell className="pl-6 font-bold text-white text-lg font-mono">{item.shotCode || 'N/A'}</TableCell>
                     <TableCell>
                       <div>
@@ -295,7 +295,7 @@ export default function ReviewQueuePage() {
                 ) : (
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {reviewHistory.reviews.map((rev) => (
-                      <div key={rev.reviewId} className="p-3 rounded bg-card/30 border border-sidebar-border text-xs flex justify-between items-center">
+                      <div key={`review-${rev.reviewId}`} className="p-3 rounded bg-card/30 border border-sidebar-border text-xs flex justify-between items-center">
                         <div>
                           <span className="font-mono font-bold text-white">Review #{rev.reviewId}</span>
                           <span className="text-muted-foreground ml-2">Status: <strong className="text-white">{rev.reviewStatus}</strong></span>
@@ -305,7 +305,7 @@ export default function ReviewQueuePage() {
                       </div>
                     ))}
                     {reviewHistory.reworks.map((rw) => (
-                      <div key={rw.reworkId} className="p-3 rounded bg-purple-500/10 border border-purple-500/20 text-xs flex justify-between items-center">
+                      <div key={`rework-${rw.reworkId}`} className="p-3 rounded bg-purple-500/10 border border-purple-500/20 text-xs flex justify-between items-center">
                         <div>
                           <span className="font-mono font-bold text-purple-400">Rework Round #{rw.reworkRound}</span>
                           <span className="text-muted-foreground ml-2">Reason: <strong className="text-white">{rw.reason}</strong></span>
@@ -320,21 +320,21 @@ export default function ReviewQueuePage() {
             </div>
 
             <DialogFooter className="flex justify-between items-center pt-4 border-t border-sidebar-border">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setSelectedItem(null)}
                 className="border-sidebar-border text-white hover:bg-sidebar-accent"
               >
                 Close
               </Button>
               <div className="flex gap-3">
-                <Button 
+                <Button
                   onClick={() => setReworkModalOpen(true)}
                   className="bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1.5"
                 >
                   <RotateCcw className="w-4 h-4" /> REQUEST REWORK
                 </Button>
-                <Button 
+                <Button
                   onClick={() => setApproveModalOpen(true)}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5"
                 >
