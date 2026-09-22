@@ -91,10 +91,6 @@ function runValidations(row) {
         isValid = false;
         messages.push('Missing Project.');
     }
-    if (!row.Episode) {
-        isValid = false;
-        messages.push('Missing Reel/Episode.');
-    }
     if (!row.ShotName) {
         isValid = false;
         messages.push('Missing Shot.');
@@ -277,7 +273,7 @@ exports.processUpload = async (file, userId, projectId = null) => {
                 .input('CGBid', sql.Decimal, row.CGBid !== undefined ? row.CGBid : null)
                 .input('TotalBid', sql.Decimal, row.TotalBid !== undefined ? row.TotalBid : null)
                 .input('Project', sql.NVarChar, row.Project || null)
-                .input('Batch', sql.NVarChar, row.Batch || null)
+                .input('Batch', sql.NVarChar, row.Batch !== undefined && row.Batch !== null ? String(row.Batch) : null)
                 .input('Department', sql.NVarChar, row.Department || null)
                 .input('SOW', sql.NVarChar, row.SOW || null)
                 .input('Notes', sql.NVarChar, row.Notes || null)
@@ -362,7 +358,7 @@ exports.updateRow = async (rowId, updates) => {
             .input('ShotName', sql.NVarChar(255), safeUpdate(updates.ShotName))
             .input('Project', sql.NVarChar(255), safeUpdate(updates.Project))
             .input('Episode', sql.NVarChar(255), safeUpdate(updates.Episode))
-            .input('Batch', sql.NVarChar(255), safeUpdate(updates.Batch))
+            .input('Batch', sql.NVarChar(255), updates.Batch !== undefined && updates.Batch !== null ? String(updates.Batch) : null)
             .input('Department', sql.NVarChar(255), safeUpdate(updates.Department))
             .input('SOW', sql.NVarChar(255), safeUpdate(updates.SOW))
             .input('Notes', sql.NVarChar(255), safeUpdate(updates.Notes))
@@ -939,7 +935,11 @@ exports.createBatchTasks = async (batchId, userId) => {
                 }
 
                 deptCounts[item.name]++;
-                const taskCode = `${shotCode}_${item.name}`;
+                let taskCode = `${shotCode}_${item.name}`;
+                if (taskCode.length > 30) {
+                    const suffix = `_${item.name}`;
+                    taskCode = `${shotCode.substring(0, 30 - suffix.length)}${suffix}`;
+                }
                 const taskName = `${shotCode} - ${item.name}`;
 
                 // Check if task exists for (ShotID, WorkflowStageID)
