@@ -5,50 +5,50 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { formatDateLocal } from '@/lib/formatTime';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { 
-  analyticsService, 
-  AnalyticsResponse, 
-  AnalyticsFilterParams 
+import {
+  analyticsService,
+  AnalyticsResponse,
+  AnalyticsFilterParams
 } from '@/services/analyticsService';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  BarChart, 
-  Bar, 
-  LineChart, 
-  Line, 
-  PieChart, 
-  Pie, 
-  Cell, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer 
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
 } from 'recharts';
-import { 
-  BarChart3, 
-  Target, 
-  Clock, 
-  AlertTriangle, 
-  Layers, 
-  TrendingUp, 
-  RefreshCw, 
-  Filter, 
-  Calendar, 
-  Users, 
-  Briefcase, 
-  CheckCircle2, 
-  AlertOctagon, 
+import {
+  BarChart3,
+  Target,
+  Clock,
+  AlertTriangle,
+  Layers,
+  TrendingUp,
+  RefreshCw,
+  Filter,
+  Calendar,
+  Users,
+  Briefcase,
+  CheckCircle2,
+  AlertOctagon,
   ChevronRight,
   PieChart as PieIcon,
   Activity,
@@ -109,7 +109,7 @@ export default function AnalyticsPage() {
   return (
     <DashboardLayout>
       <div className="p-8 space-y-8 pb-24 text-white">
-        
+
         {/* 1. HEADER */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-sidebar-border/40 pb-6">
           <div>
@@ -126,11 +126,11 @@ export default function AnalyticsPage() {
               Studio-wide production intelligence and performance analytics.
             </p>
           </div>
-          
+
           <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={fetchAnalytics}
               disabled={loading}
               className="bg-card border-sidebar-border text-xs font-semibold hover:bg-sidebar-accent"
@@ -255,9 +255,9 @@ export default function AnalyticsPage() {
 
               {/* Reset Button */}
               {(projectId !== 'all' || stageId !== 'all' || artistId !== 'all' || complexity !== 'all' || dateRange !== 'all') && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setProjectId('all');
                     setStageId('all');
@@ -303,7 +303,7 @@ export default function AnalyticsPage() {
         {/* MAIN DASHBOARD CONTENT */}
         {data && (
           <div className="space-y-8">
-            
+
             {/* 3. KPI SUMMARY GRID */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
               <Card className="bg-card border-sidebar-border p-4 flex flex-col justify-between shadow-lg">
@@ -384,7 +384,7 @@ export default function AnalyticsPage() {
 
             {/* CHARTS GRID — ROW 1: STATUS DISTRIBUTION & DEPARTMENT WORKLOAD */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              
+
               {/* 5. TASK STATUS DISTRIBUTION (PIE/DONUT CHART) */}
               <Card className="bg-card border-sidebar-border shadow-2xl">
                 <CardHeader>
@@ -413,7 +413,7 @@ export default function AnalyticsPage() {
                           <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
                       </Pie>
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff' }}
                         formatter={(val: number) => [`${val} tasks`, 'Count']}
                       />
@@ -457,7 +457,7 @@ export default function AnalyticsPage() {
 
             {/* CHARTS GRID — ROW 2: PROJECT PROGRESS & BID VS ACTUAL */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              
+
               {/* 7. PROJECT PRODUCTION PROGRESS (HORIZONTAL BAR CHART) */}
               <Card className="bg-card border-sidebar-border shadow-2xl">
                 <CardHeader>
@@ -475,7 +475,7 @@ export default function AnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                       <XAxis type="number" domain={[0, 100]} unit="%" stroke="#a1a1aa" fontSize={12} />
                       <YAxis type="category" dataKey="projectCode" stroke="#a1a1aa" fontSize={12} width={70} />
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff' }}
                         formatter={(val: number) => [`${val}%`, 'Completion Rate']}
                       />
@@ -502,7 +502,7 @@ export default function AnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                       <XAxis dataKey="projectCode" stroke="#a1a1aa" fontSize={12} />
                       <YAxis stroke="#a1a1aa" fontSize={12} unit=" Bid" />
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff' }}
                         formatter={(val: number) => [`${val} Bid`, 'Bid Value']}
                       />
@@ -519,7 +519,7 @@ export default function AnalyticsPage() {
 
             {/* CHARTS GRID — ROW 3: ARTIST WORKLOAD & PRODUCTION TREND */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              
+
               {/* 9. ARTIST WORKLOAD CHART */}
               <Card className="bg-card border-sidebar-border shadow-2xl">
                 <CardHeader>
@@ -537,7 +537,7 @@ export default function AnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                       <XAxis type="number" stroke="#a1a1aa" fontSize={12} unit=" Bid" />
                       <YAxis type="category" dataKey="artistName" stroke="#a1a1aa" fontSize={12} width={110} />
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff' }}
                         formatter={(val: number) => [`${val} Bid`, 'Bid Value']}
                       />
@@ -571,7 +571,7 @@ export default function AnalyticsPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                         <XAxis dataKey="workDate" stroke="#a1a1aa" fontSize={12} />
                         <YAxis stroke="#a1a1aa" fontSize={12} unit=" Bid" />
-                        <Tooltip 
+                        <Tooltip
                           contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff' }}
                           formatter={(val: number) => [`${val} Bid`, 'Worked Bid']}
                         />
@@ -669,7 +669,7 @@ export default function AnalyticsPage() {
 
             {/* 11. REVIEW / REWORK ANALYTICS & QUEUE METRICS */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
+
               {/* REVIEW OUTCOMES CHART */}
               <Card className="bg-card border-sidebar-border shadow-2xl lg:col-span-2">
                 <CardHeader>
@@ -774,7 +774,7 @@ export default function AnalyticsPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                         <XAxis dataKey="complexity" stroke="#71717a" tick={{ fill: '#71717a', fontSize: 12 }} />
                         <YAxis stroke="#71717a" tick={{ fill: '#71717a', fontSize: 12 }} />
-                        <Tooltip 
+                        <Tooltip
                           contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff' }}
                           cursor={{ fill: '#27272a', opacity: 0.4 }}
                         />
@@ -803,7 +803,7 @@ export default function AnalyticsPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                         <XAxis dataKey="complexity" stroke="#71717a" tick={{ fill: '#71717a', fontSize: 12 }} />
                         <YAxis stroke="#71717a" tick={{ fill: '#71717a', fontSize: 12 }} />
-                        <Tooltip 
+                        <Tooltip
                           contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', color: '#fff' }}
                           cursor={{ fill: '#27272a', opacity: 0.4 }}
                         />
@@ -850,9 +850,9 @@ export default function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-sidebar-border/50 font-medium">
-                    {data.attentionRequired.map((item) => (
-                      <tr 
-                        key={item.taskId}
+                    {data.attentionRequired.map((item, index) => (
+                      <tr
+                        key={`attention-${item.taskId}-${index}`}
                         onClick={() => router.push(`/tasks/${item.taskId}`)}
                         className="hover:bg-sidebar-accent/40 cursor-pointer transition-colors"
                       >

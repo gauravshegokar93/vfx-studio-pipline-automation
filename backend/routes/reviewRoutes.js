@@ -16,7 +16,7 @@ function securedAny(handler) {
 /**
  * 1. POST /api/tasks/:id/submit-review
  * Artist submits an assigned task (Status 2: In Progress, or Status 5: Rework) for review.
- * Closes active TimeLog if present, creates TaskReview ('Submitted'), sets TaskMaster.StatusID = 3 ('Review').
+ * Closes active TimeLog if present, creates TaskReview ('Submitted'), sets TaskAssignment.StatusID = 3 ('Review').
  */
 async function submitTaskForReview(req, res) {
   try {
@@ -36,59 +36,52 @@ async function submitTaskForReview(req, res) {
     await transaction.begin();
 
     try {
-      // 1. Lock and validate TaskMaster & TaskAssignment
+      // 1. Lock and validate TaskAssignment & TaskMaster
       const taskReq = new sql.Request(transaction);
       taskReq.input('TaskId', sql.BigInt, taskId);
+      taskReq.input('AuthUserId', sql.BigInt, authUserId);
 
       const taskRes = await taskReq.query(`
-        SELECT 
-          t.TaskID, 
-          t.TaskCode, 
-          t.TaskName, 
-          t.StatusID, 
-          st.StatusName,
-          ta.UserID AS AssignedUserID,
-          ta.AssignedBy AS AssignedByUserID
-        FROM TaskMaster t WITH (UPDLOCK, HOLDLOCK)
-        LEFT JOIN StatusMaster st ON t.StatusID = st.StatusId
-        LEFT JOIN TaskAssignment ta ON t.TaskID = ta.TaskID
-        WHERE t.TaskID = @TaskId AND t.IsActive = 1 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
+        SELECT
+          t.TaskID,
+          t.TaskCode,
+          t.TaskName,
+          t.StatusID AS TaskStatusID,
+          ta.AssignmentID,
+          ta.StatusID AS AssignmentStatusID,
+          ta.AssignedBy AS AssignedByUserID,
+          st.StatusName AS AssignmentStatusName
+        FROM TaskAssignment ta WITH (UPDLOCK, HOLDLOCK)
+        INNER JOIN TaskMaster t ON ta.TaskID = t.TaskID
+        LEFT JOIN StatusMaster st ON ta.StatusID = st.StatusId
+        WHERE ta.TaskID = @TaskId AND ta.UserID = @AuthUserId
+          AND t.IsActive = 1 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
       `);
 
       if (!taskRes.recordset || taskRes.recordset.length === 0) {
         await transaction.rollback();
-        return res.status(404).json({ error: 'TASK_NOT_FOUND', message: `Task ${taskId} not found or inactive.` });
+        return res.status(404).json({ error: 'TASK_NOT_FOUND', message: `Task ${taskId} not found, inactive, or not assigned to you.` });
       }
 
-      const task = taskRes.recordset[0];
-      const statusIdNum = parseInt(task.StatusID, 10);
+      const assignment = taskRes.recordset[0];
+      const statusIdNum = parseInt(assignment.AssignmentStatusID, 10);
 
-      if (statusIdNum === 4 || task.StatusName === 'Completed') {
+      if (statusIdNum === 4 || assignment.AssignmentStatusName === 'Completed') {
         await transaction.rollback();
-        return res.status(400).json({ error: 'TASK_ALREADY_COMPLETED', message: 'Task is already completed.' });
+        return res.status(400).json({ error: 'TASK_ALREADY_COMPLETED', message: 'Your assignment is already completed.' });
       }
 
-      if (statusIdNum === 3 || task.StatusName === 'Review') {
+      if (statusIdNum === 3 || assignment.AssignmentStatusName === 'Review') {
         await transaction.rollback();
-        return res.status(400).json({ error: 'INVALID_STATUS_TRANSITION', message: 'Task is already submitted for review.' });
+        return res.status(400).json({ error: 'INVALID_STATUS_TRANSITION', message: 'Your assignment is already submitted for review.' });
       }
 
       if (statusIdNum !== 2 && statusIdNum !== 5) {
         await transaction.rollback();
-        return res.status(400).json({ 
-          error: 'INVALID_STATUS_TRANSITION', 
-          message: `Task must be in In Progress (2) or Rework (5) status to submit for review. Current status: ${task.StatusName || task.StatusID}.` 
+        return res.status(400).json({
+          error: 'INVALID_STATUS_TRANSITION',
+          message: `Assignment must be in In Progress (2) or Rework (5) status to submit for review. Current status: ${assignment.AssignmentStatusName || statusIdNum}.`
         });
-      }
-
-      if (!task.AssignedUserID) {
-        await transaction.rollback();
-        return res.status(403).json({ error: 'TASK_NOT_ASSIGNED', message: 'Task is not assigned to any artist.' });
-      }
-
-      if (parseInt(task.AssignedUserID, 10) !== authUserId) {
-        await transaction.rollback();
-        return res.status(403).json({ error: 'NOT_TASK_OWNER', message: 'You can only submit tasks assigned to you.' });
       }
 
       // 2. Check & close active TimeLog if present
@@ -97,7 +90,7 @@ async function submitTaskForReview(req, res) {
       logReq.input('UserId', sql.BigInt, authUserId);
 
       const activeLogRes = await logReq.query(`
-        SELECT TOP 1 TimeLogID, StartTime 
+        SELECT TOP 1 TimeLogID, StartTime
         FROM TimeLog WITH (UPDLOCK, HOLDLOCK)
         WHERE TaskID = @TaskId AND UserID = @UserId AND EndTime IS NULL
         ORDER BY TimeLogID DESC
@@ -112,15 +105,15 @@ async function submitTaskForReview(req, res) {
           DECLARE @Now DATETIME2 = GETDATE();
           DECLARE @Start DATETIME2;
           SELECT @Start = StartTime FROM TimeLog WHERE TimeLogID = @TimeLogId;
-          
+
           DECLARE @Seconds INT = DATEDIFF(SECOND, @Start, @Now);
-          DECLARE @Hours DECIMAL(10,2) = CASE 
-            WHEN @Seconds <= 0 THEN 0.01 
-            ELSE ROUND(CAST(@Seconds AS DECIMAL(10,2)) / 3600.0, 2) 
+          DECLARE @Hours DECIMAL(10,2) = CASE
+            WHEN @Seconds <= 0 THEN 0.01
+            ELSE ROUND(CAST(@Seconds AS DECIMAL(10,2)) / 3600.0, 2)
           END;
 
-          UPDATE TimeLog 
-          SET EndTime = @Now, HoursWorked = @Hours 
+          UPDATE TimeLog
+          SET EndTime = @Now, HoursWorked = @Hours
           WHERE TimeLogID = @TimeLogId;
         `);
       }
@@ -136,19 +129,19 @@ async function submitTaskForReview(req, res) {
         VALUES (@TaskId, NULL, GETDATE(), 'Submitted', NULL, @Remarks)
       `);
 
-      // 4. Update TaskMaster.StatusID = 3 (Review)
+      // 4. Update TaskAssignment.StatusID = 3 (Review)
       const updateReq = new sql.Request(transaction);
-      updateReq.input('TaskId', sql.BigInt, taskId);
+      updateReq.input('AssignmentId', sql.BigInt, assignment.AssignmentID);
       await updateReq.query(`
-        UPDATE TaskMaster 
-        SET StatusID = 3 
-        WHERE TaskID = @TaskId
+        UPDATE TaskAssignment
+        SET StatusID = 3
+        WHERE AssignmentID = @AssignmentId
       `);
 
       // 5. Log History & Notify
       await logTaskHistory(transaction, taskId, statusIdNum, 3, authUserId, remarks || 'Submitted for review');
-      if (task.AssignedByUserID) {
-        await createNotification(transaction, task.AssignedByUserID, 'REVIEW_SUBMITTED', 'Task Submitted', `Task ${task.TaskCode} was submitted for review.`, taskId);
+      if (assignment.AssignedByUserID) {
+        await createNotification(transaction, assignment.AssignedByUserID, 'REVIEW_SUBMITTED', 'Task Submitted', `Task ${assignment.TaskCode} was submitted for review by an artist.`, taskId);
       }
 
       await transaction.commit();
@@ -182,52 +175,52 @@ async function getReviewQueue(req, res) {
     const queueReq = pool.request();
 
     const result = await queueReq.query(`
-      SELECT 
-        t.TaskID AS taskId,
+      SELECT
+        ta.TaskID AS taskId,
         t.TaskCode AS taskCode,
         t.TaskName AS taskName,
         ISNULL(t.EstimatedHours, 0) AS estimatedHours,
         ROUND(ISNULL(t.EstimatedHours, 0) / 8.0, 2) AS estimatedBid,
         ISNULL(ta.TargetHours, 0) AS targetHours,
         ROUND(ISNULL(ta.TargetHours, 0) / 8.0, 2) AS targetBid,
-        st.StatusId AS statusId,
+        ta.StatusID AS statusId,
         ISNULL(st.StatusName, 'Review') AS statusName,
         w.StageID AS stageId,
         w.StageName AS stageName,
-        u.UserID AS assignedUserId,
+        ta.UserID AS assignedUserId,
         u.FullName AS assignedArtistName,
         u.Email AS assignedArtistEmail,
         s.ShotID AS shotId,
         s.ShotCode AS shotCode,
-        tr.ReviewID AS reviewId,
+        ta.AssignmentID AS reviewId,
         tr.ReviewDate AS submissionDate,
         tr.Remarks AS submissionRemarks,
         ISNULL(tl.ActualWorkedHours, 0.00) AS actualWorkedHours,
         ROUND(ISNULL(tl.ActualWorkedHours, 0.00) / 8.0, 2) AS actualWorkedBid
-      FROM TaskMaster t
-      LEFT JOIN TaskAssignment ta ON t.TaskID = ta.TaskID
-      LEFT JOIN StatusMaster st ON t.StatusID = st.StatusId
+      FROM TaskAssignment ta
+      INNER JOIN TaskMaster t ON ta.TaskID = t.TaskID
+      LEFT JOIN StatusMaster st ON ta.StatusID = st.StatusId
       LEFT JOIN WorkflowStageMaster w ON t.WorkflowStageID = w.StageId
       LEFT JOIN UserMaster u ON ta.UserID = u.UserId
       LEFT JOIN ShotMaster s ON t.ShotID = s.ShotId
       OUTER APPLY (
-        SELECT TOP 1 ReviewID, ReviewDate, Remarks 
-        FROM TaskReview 
-        WHERE TaskID = t.TaskID AND ReviewStatus = 'Submitted'
+        SELECT TOP 1 ReviewID, ReviewDate, Remarks
+        FROM TaskReview
+        WHERE TaskID = ta.TaskID AND ReviewStatus = 'Submitted'
         ORDER BY ReviewID DESC
       ) tr
       OUTER APPLY (
         SELECT ROUND(SUM(
-          CASE 
+          CASE
             WHEN EndTime IS NOT NULL THEN HoursWorked
             ELSE DATEDIFF(SECOND, StartTime, GETDATE()) / 3600.0
           END
         ), 2) AS ActualWorkedHours
         FROM TimeLog
-        WHERE TaskID = t.TaskID
+        WHERE TaskID = ta.TaskID AND UserID = ta.UserID
       ) tl
-      WHERE t.StatusID = 3 AND t.IsActive = 1 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
-      ORDER BY tr.ReviewDate DESC, t.TaskID DESC
+      WHERE ta.StatusID = 3 AND t.IsActive = 1 AND (t.IsDeleted = 0 OR t.IsDeleted IS NULL)
+      ORDER BY tr.ReviewDate DESC, ta.AssignmentID DESC
     `);
 
     return res.status(200).json({
@@ -257,7 +250,7 @@ async function getTaskReviews(req, res) {
     reqDb.input('TaskId', sql.BigInt, taskId);
 
     const reviewsRes = await reqDb.query(`
-      SELECT 
+      SELECT
         tr.ReviewID AS reviewId,
         tr.TaskID AS taskId,
         tr.ReviewerID AS reviewerId,
@@ -266,17 +259,15 @@ async function getTaskReviews(req, res) {
         tr.ReviewStatus AS reviewStatus,
         tr.Rating AS rating,
         tr.Remarks AS remarks,
-        au.FullName AS artistName
+        NULL AS artistName
       FROM TaskReview tr
       LEFT JOIN UserMaster ru ON tr.ReviewerID = ru.UserId
-      LEFT JOIN TaskAssignment ta ON tr.TaskID = ta.TaskID
-      LEFT JOIN UserMaster au ON ta.UserID = au.UserId
       WHERE tr.TaskID = @TaskId
       ORDER BY tr.ReviewID ASC
     `);
 
     const reworksRes = await reqDb.query(`
-      SELECT 
+      SELECT
         rw.ReworkID AS reworkId,
         rw.TaskID AS taskId,
         rw.RequestedBy AS requestedBy,
@@ -315,16 +306,18 @@ async function getTaskReviews(req, res) {
 
 /**
  * 4. POST /api/reviews/:reviewId/approve
- * Reviewer approves a submitted review. Updates TaskReview ('Approved') and TaskMaster.StatusID = 4 ('Completed').
+ * Reviewer approves a submitted review. 'reviewId' in the URL is actually the AssignmentID.
+ * Updates TaskAssignment.StatusID = 4 ('Completed').
+ * Optionally updates TaskReview ('Approved') and TaskMaster.StatusID = 4 if all assignments are done.
  */
 async function approveReview(req, res) {
   try {
-    const reviewId = parseInt(req.params.reviewId, 10);
+    const assignmentId = parseInt(req.params.reviewId, 10);
     const authUserId = parseInt(req.user?.userId, 10);
     const { rating, remarks } = req.body || {};
 
-    if (isNaN(reviewId) || reviewId <= 0) {
-      return res.status(400).json({ error: 'INVALID_REVIEW_ID', message: 'Review ID must be a positive integer.' });
+    if (isNaN(assignmentId) || assignmentId <= 0) {
+      return res.status(400).json({ error: 'INVALID_REVIEW_ID', message: 'Review ID (AssignmentID) must be a positive integer.' });
     }
     if (isNaN(authUserId) || authUserId <= 0) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid authenticated user.' });
@@ -335,91 +328,92 @@ async function approveReview(req, res) {
     await transaction.begin();
 
     try {
-      // 1. Lock TaskReview
-      const revReq = new sql.Request(transaction);
-      revReq.input('ReviewId', sql.BigInt, reviewId);
+      // 1. Lock and fetch TaskAssignment
+      const assignReq = new sql.Request(transaction);
+      assignReq.input('AssignmentId', sql.BigInt, assignmentId);
 
-      const revRes = await revReq.query(`
-        SELECT ReviewID, TaskID, ReviewStatus 
-        FROM TaskReview WITH (UPDLOCK, HOLDLOCK)
-        WHERE ReviewID = @ReviewId
+      const assignRes = await assignReq.query(`
+        SELECT ta.AssignmentID, ta.TaskID, ta.UserID, ta.StatusID AS AssignmentStatusID,
+               t.TaskCode, t.StatusID AS TaskStatusID
+        FROM TaskAssignment ta WITH (UPDLOCK, HOLDLOCK)
+        INNER JOIN TaskMaster t ON ta.TaskID = t.TaskID
+        WHERE ta.AssignmentID = @AssignmentId
       `);
 
-      if (!revRes.recordset || revRes.recordset.length === 0) {
+      if (!assignRes.recordset || assignRes.recordset.length === 0) {
         await transaction.rollback();
-        return res.status(404).json({ error: 'REVIEW_NOT_FOUND', message: `Review ${reviewId} not found.` });
+        return res.status(404).json({ error: 'ASSIGNMENT_NOT_FOUND', message: `Review/Assignment ${assignmentId} not found.` });
       }
 
-      const review = revRes.recordset[0];
+      const assignment = assignRes.recordset[0];
 
-      if (review.ReviewStatus !== 'Submitted') {
+      const statusIdNum = parseInt(assignment.AssignmentStatusID, 10);
+      if (statusIdNum !== 3) {
         await transaction.rollback();
-        return res.status(409).json({ 
-          error: 'REVIEW_ALREADY_PROCESSED', 
-          message: `Review ${reviewId} has already been processed (Current status: ${review.ReviewStatus}).` 
+        return res.status(409).json({
+          error: 'INVALID_STATUS_TRANSITION',
+          message: `Assignment ${assignmentId} is not in Review status (Current status ID: ${assignment.AssignmentStatusID}).`
         });
       }
 
-      // 2. Lock TaskMaster
-      const taskReq = new sql.Request(transaction);
-      taskReq.input('TaskId', sql.BigInt, review.TaskID);
-
-      const taskRes = await taskReq.query(`
-        SELECT t.TaskID, t.StatusID, ta.UserID AS AssignedUserID 
-        FROM TaskMaster t WITH (UPDLOCK, HOLDLOCK)
-        LEFT JOIN TaskAssignment ta ON t.TaskID = ta.TaskID
-        WHERE t.TaskID = @TaskId
+      // 2. Update TaskAssignment StatusID = 4 (Completed)
+      const updateAssignReq = new sql.Request(transaction);
+      updateAssignReq.input('AssignmentId', sql.BigInt, assignmentId);
+      await updateAssignReq.query(`
+        UPDATE TaskAssignment
+        SET StatusID = 4
+        WHERE AssignmentID = @AssignmentId
       `);
 
-      if (!taskRes.recordset || taskRes.recordset.length === 0) {
-        await transaction.rollback();
-        return res.status(404).json({ error: 'TASK_NOT_FOUND', message: `Task ${review.TaskID} not found.` });
-      }
-
-      const task = taskRes.recordset[0];
-      if (parseInt(task.StatusID, 10) !== 3) {
-        await transaction.rollback();
-        return res.status(409).json({ 
-          error: 'INVALID_STATUS_TRANSITION', 
-          message: `Task ${review.TaskID} is not in Review status (Current status ID: ${task.StatusID}).` 
-        });
-      }
-
-      // 3. Update TaskReview
+      // 3. Try to update a pending TaskReview row
       const updateRevReq = new sql.Request(transaction);
-      updateRevReq.input('ReviewId', sql.BigInt, reviewId);
+      updateRevReq.input('TaskId', sql.BigInt, assignment.TaskID);
       updateRevReq.input('ReviewerId', sql.BigInt, authUserId);
       updateRevReq.input('Rating', sql.Int, rating ? parseInt(rating, 10) : null);
       updateRevReq.input('Remarks', sql.VarChar(500), remarks || 'Approved');
 
       await updateRevReq.query(`
-        UPDATE TaskReview 
+        UPDATE TaskReview
         SET ReviewStatus = 'Approved', ReviewerID = @ReviewerId, ReviewDate = GETDATE(), Rating = @Rating, Remarks = @Remarks
-        WHERE ReviewID = @ReviewId
+        WHERE ReviewID = (
+          SELECT TOP 1 ReviewID FROM TaskReview
+          WHERE TaskID = @TaskId AND ReviewStatus = 'Submitted'
+          ORDER BY ReviewID ASC
+        )
       `);
 
-      // 4. Update TaskMaster StatusID = 4 (Completed)
-      const updateTaskReq = new sql.Request(transaction);
-      updateTaskReq.input('TaskId', sql.BigInt, review.TaskID);
-      await updateTaskReq.query(`
-        UPDATE TaskMaster 
-        SET StatusID = 4 
-        WHERE TaskID = @TaskId
+      // 4. Update TaskMaster StatusID = 4 ONLY IF all active assignments are 4
+      const checkAllReq = new sql.Request(transaction);
+      checkAllReq.input('TaskId', sql.BigInt, assignment.TaskID);
+      const checkRes = await checkAllReq.query(`
+        SELECT COUNT(*) AS PendingCount
+        FROM TaskAssignment
+        WHERE TaskID = @TaskId AND StatusID != 4
       `);
+
+      if (checkRes.recordset[0].PendingCount === 0) {
+        const updateTaskReq = new sql.Request(transaction);
+        updateTaskReq.input('TaskId', sql.BigInt, assignment.TaskID);
+        await updateTaskReq.query(`
+          UPDATE TaskMaster
+          SET StatusID = 4
+          WHERE TaskID = @TaskId
+        `);
+      }
 
       // 5. Log History & Notify
-      await logTaskHistory(transaction, review.TaskID, task.StatusID, 4, authUserId, remarks || 'Approved');
-      if (task.AssignedUserID) {
-        await createNotification(transaction, task.AssignedUserID, 'TASK_APPROVED', 'Task Approved', `Your task ${task.TaskCode || review.TaskID} was approved.`, review.TaskID);
+      await logTaskHistory(transaction, assignment.TaskID, assignment.TaskStatusID, 4, authUserId, remarks || 'Approved an artist assignment');
+      if (assignment.UserID) {
+        await createNotification(transaction, assignment.UserID, 'TASK_APPROVED', 'Task Approved', `Your task assignment for ${assignment.TaskCode} was approved.`, assignment.TaskID);
       }
 
       await transaction.commit();
 
       return res.status(200).json({
         success: true,
-        message: 'Task review approved successfully. Task is now Completed.',
-        reviewId,
-        taskId: review.TaskID,
+        message: 'Task review approved successfully. Assignment is now Completed.',
+        reviewId: assignmentId,
+        taskId: assignment.TaskID,
         statusId: 4
       });
     } catch (txErr) {
@@ -434,16 +428,18 @@ async function approveReview(req, res) {
 
 /**
  * 5. POST /api/reviews/:reviewId/rework
- * Reviewer requests rework on a submitted review. Updates TaskReview ('Rework'), creates TaskRework, and sets TaskMaster.StatusID = 5 ('Rework').
+ * Reviewer requests rework on a submitted review. 'reviewId' in the URL is AssignmentID.
+ * Updates TaskAssignment.StatusID = 5 ('Rework').
+ * Creates TaskRework and sets TaskMaster.StatusID = 5 ('Rework').
  */
 async function requestRework(req, res) {
   try {
-    const reviewId = parseInt(req.params.reviewId, 10);
+    const assignmentId = parseInt(req.params.reviewId, 10);
     const authUserId = parseInt(req.user?.userId, 10);
     const { reason, reviewerRemarks } = req.body || {};
 
-    if (isNaN(reviewId) || reviewId <= 0) {
-      return res.status(400).json({ error: 'INVALID_REVIEW_ID', message: 'Review ID must be a positive integer.' });
+    if (isNaN(assignmentId) || assignmentId <= 0) {
+      return res.status(400).json({ error: 'INVALID_REVIEW_ID', message: 'Review ID (AssignmentID) must be a positive integer.' });
     }
     if (isNaN(authUserId) || authUserId <= 0) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid authenticated user.' });
@@ -457,76 +453,64 @@ async function requestRework(req, res) {
     await transaction.begin();
 
     try {
-      // 1. Lock TaskReview
-      const revReq = new sql.Request(transaction);
-      revReq.input('ReviewId', sql.BigInt, reviewId);
+      // 1. Lock and fetch TaskAssignment
+      const assignReq = new sql.Request(transaction);
+      assignReq.input('AssignmentId', sql.BigInt, assignmentId);
 
-      const revRes = await revReq.query(`
-        SELECT ReviewID, TaskID, ReviewStatus 
-        FROM TaskReview WITH (UPDLOCK, HOLDLOCK)
-        WHERE ReviewID = @ReviewId
+      const assignRes = await assignReq.query(`
+        SELECT ta.AssignmentID, ta.TaskID, ta.UserID, ta.AssignedBy, ta.StatusID AS AssignmentStatusID,
+               t.TaskCode, t.StatusID AS TaskStatusID
+        FROM TaskAssignment ta WITH (UPDLOCK, HOLDLOCK)
+        INNER JOIN TaskMaster t ON ta.TaskID = t.TaskID
+        WHERE ta.AssignmentID = @AssignmentId
       `);
 
-      if (!revRes.recordset || revRes.recordset.length === 0) {
+      if (!assignRes.recordset || assignRes.recordset.length === 0) {
         await transaction.rollback();
-        return res.status(404).json({ error: 'REVIEW_NOT_FOUND', message: `Review ${reviewId} not found.` });
+        return res.status(404).json({ error: 'ASSIGNMENT_NOT_FOUND', message: `Review/Assignment ${assignmentId} not found.` });
       }
 
-      const review = revRes.recordset[0];
+      const assignment = assignRes.recordset[0];
+      const taskId = assignment.TaskID;
 
-      if (review.ReviewStatus !== 'Submitted') {
+      const statusIdNum = parseInt(assignment.AssignmentStatusID, 10);
+      if (statusIdNum !== 3) {
         await transaction.rollback();
-        return res.status(409).json({ 
-          error: 'REVIEW_ALREADY_PROCESSED', 
-          message: `Review ${reviewId} has already been processed (Current status: ${review.ReviewStatus}).` 
+        return res.status(409).json({
+          error: 'INVALID_STATUS_TRANSITION',
+          message: `Assignment ${assignmentId} is not in Review status (Current status ID: ${assignment.AssignmentStatusID}).`
         });
       }
 
-      // 2. Lock TaskMaster
-      const taskId = review.TaskID;
-      const taskReq = new sql.Request(transaction);
-      taskReq.input('TaskId', sql.BigInt, taskId);
-
-      const taskRes = await taskReq.query(`
-        SELECT TaskID, StatusID 
-        FROM TaskMaster WITH (UPDLOCK, HOLDLOCK)
-        WHERE TaskID = @TaskId
+      // 2. Update TaskAssignment to Rework (5)
+      const updateAssignReq = new sql.Request(transaction);
+      updateAssignReq.input('AssignmentId', sql.BigInt, assignmentId);
+      await updateAssignReq.query(`
+        UPDATE TaskAssignment
+        SET StatusID = 5
+        WHERE AssignmentID = @AssignmentId
       `);
 
-      if (!taskRes.recordset || taskRes.recordset.length === 0) {
-        await transaction.rollback();
-        return res.status(404).json({ error: 'TASK_NOT_FOUND', message: `Task ${taskId} not found.` });
-      }
-
-      const task = taskRes.recordset[0];
-      if (parseInt(task.StatusID, 10) !== 3) {
-        await transaction.rollback();
-        return res.status(409).json({ 
-          error: 'INVALID_STATUS_TRANSITION', 
-          message: `Task ${taskId} is not in Review status (Current status ID: ${task.StatusID}).` 
-        });
-      }
-
-      // 3. Update TaskReview status to 'Rework'
+      // 3. Try to update a pending TaskReview row to 'Rework'
       const updateRevReq = new sql.Request(transaction);
-      updateRevReq.input('ReviewId', sql.BigInt, reviewId);
+      updateRevReq.input('TaskId', sql.BigInt, taskId);
       updateRevReq.input('ReviewerId', sql.BigInt, authUserId);
       updateRevReq.input('Remarks', sql.VarChar(500), reviewerRemarks || reason);
 
-      await updateRevReq.query(`
-        UPDATE TaskReview 
+      const updateRevRes = await updateRevReq.query(`
+        UPDATE TaskReview
         SET ReviewStatus = 'Rework', ReviewerID = @ReviewerId, ReviewDate = GETDATE(), Remarks = @Remarks
-        WHERE ReviewID = @ReviewId
+        OUTPUT INSERTED.ReviewID
+        WHERE ReviewID = (
+          SELECT TOP 1 ReviewID FROM TaskReview
+          WHERE TaskID = @TaskId AND ReviewStatus = 'Submitted'
+          ORDER BY ReviewID ASC
+        )
       `);
 
-      // 4. Find assigned artist & calculate rework round & worked minutes
-      const assignReq = new sql.Request(transaction);
-      assignReq.input('TaskId', sql.BigInt, taskId);
-      const assignRes = await assignReq.query(`
-        SELECT TOP 1 UserID FROM TaskAssignment WHERE TaskID = @TaskId ORDER BY AssignmentID DESC
-      `);
-      const assignedToUserId = assignRes.recordset && assignRes.recordset.length > 0 ? assignRes.recordset[0].UserID : authUserId;
+      const updatedReviewId = updateRevRes.recordset && updateRevRes.recordset.length > 0 ? updateRevRes.recordset[0].ReviewID : null;
 
+      // 4. Calculate rework round & worked minutes for this specific user
       const roundReq = new sql.Request(transaction);
       roundReq.input('TaskId', sql.BigInt, taskId);
       const roundRes = await roundReq.query(`
@@ -536,15 +520,16 @@ async function requestRework(req, res) {
 
       const minsReq = new sql.Request(transaction);
       minsReq.input('TaskId', sql.BigInt, taskId);
+      minsReq.input('UserId', sql.BigInt, assignment.UserID);
       const minsRes = await minsReq.query(`
         SELECT CAST(ISNULL(SUM(
-          CASE 
+          CASE
             WHEN EndTime IS NOT NULL THEN HoursWorked * 60.0
             ELSE DATEDIFF(SECOND, StartTime, GETDATE()) / 60.0
           END
         ), 0) AS INT) AS TotalWorkedMinutes
         FROM TimeLog
-        WHERE TaskID = @TaskId
+        WHERE TaskID = @TaskId AND UserID = @UserId
       `);
       const totalWorkedMinutes = minsRes.recordset[0].TotalWorkedMinutes;
 
@@ -553,9 +538,9 @@ async function requestRework(req, res) {
       insertRewReq.input('TaskId', sql.BigInt, taskId);
       insertRewReq.input('RequestedBy', sql.BigInt, authUserId);
       insertRewReq.input('Reason', sql.VarChar(500), reason.trim());
-      insertRewReq.input('ReviewId', sql.BigInt, reviewId);
-      insertRewReq.input('AssignedToUserID', sql.BigInt, assignedToUserId);
-      insertRewReq.input('AssignedByUserID', sql.BigInt, authUserId);
+      insertRewReq.input('ReviewId', sql.BigInt, updatedReviewId);
+      insertRewReq.input('AssignedToUserID', sql.BigInt, assignment.UserID);
+      insertRewReq.input('AssignedByUserID', sql.BigInt, assignment.AssignedBy || authUserId);
       insertRewReq.input('ReworkRound', sql.Int, nextRound);
       insertRewReq.input('PreviousWorkedMinutes', sql.Int, totalWorkedMinutes);
       insertRewReq.input('AdditionalWorkedMinutes', sql.Int, 0);
@@ -585,15 +570,15 @@ async function requestRework(req, res) {
       const updateTaskReq = new sql.Request(transaction);
       updateTaskReq.input('TaskId', sql.BigInt, taskId);
       await updateTaskReq.query(`
-        UPDATE TaskMaster 
-        SET StatusID = 5 
+        UPDATE TaskMaster
+        SET StatusID = 5
         WHERE TaskID = @TaskId
       `);
 
       // 7. Log History & Notify
-      await logTaskHistory(transaction, taskId, task.StatusID, 5, authUserId, reason.trim());
-      if (assignedToUserId) {
-        await createNotification(transaction, assignedToUserId, 'REWORK_REQUESTED', 'Rework Requested', `Rework requested for task.`, taskId);
+      await logTaskHistory(transaction, taskId, assignment.TaskStatusID, 5, authUserId, reason.trim());
+      if (assignment.UserID) {
+        await createNotification(transaction, assignment.UserID, 'REWORK_REQUESTED', 'Rework Requested', `Rework requested for your assignment.`, taskId);
       }
 
       await transaction.commit();
@@ -602,9 +587,9 @@ async function requestRework(req, res) {
 
       return res.status(200).json({
         success: true,
-        message: `Rework requested successfully (Round ${nextRound}). Task is now in Rework status.`,
+        message: `Rework requested successfully (Round ${nextRound}). Assignment is now in Rework status.`,
         reworkId: newRework.ReworkID,
-        reviewId,
+        reviewId: assignmentId,
         taskId,
         reworkRound: nextRound,
         statusId: 5

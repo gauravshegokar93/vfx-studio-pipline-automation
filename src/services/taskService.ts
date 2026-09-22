@@ -37,6 +37,7 @@ export interface TaskItem {
   assignedDate?: string | null;
   remarks?: string | null;
   complexity?: string;
+  assignmentsJson?: string;
 }
 
 export interface UserItem {
@@ -244,7 +245,29 @@ export const taskService = {
     }
   },
 
-  async adjustTarget(taskId: number, payload: { targetBid?: number; targetHours?: number; remarks?: string }) {
+  async unassignTask(assignmentId: number) {
+    try {
+      const response = await apiClient.delete(`/assignments/${assignmentId}`);
+      return response.data;
+    } catch (err: any) {
+      console.error('[taskService] unassignTask error:', err);
+      const message = err.response?.data?.message || err.message || 'Failed to unassign task';
+      throw new Error(message);
+    }
+  },
+
+  async reassignRemainingBid(assignmentId: number, newUserId: number) {
+    try {
+      const response = await apiClient.post(`/assignments/${assignmentId}/reassign`, { newUserId });
+      return response.data;
+    } catch (err: any) {
+      console.error('[taskService] reassignRemainingBid error:', err);
+      const message = err.response?.data?.message || err.message || 'Failed to reassign remaining bid';
+      throw new Error(message);
+    }
+  },
+
+  async adjustTarget(taskId: number, payload: { userId?: number; targetBid?: number; targetHours?: number; remarks?: string }) {
     try {
       const response = await apiClient.put(`/assignments/${taskId}/target`, payload);
       return response.data;
@@ -351,9 +374,10 @@ export const taskService = {
     }
   },
 
-  getTaskTimeSummary: async (taskId: string | number): Promise<TaskTimeSummary | null> => {
+  getTaskTimeSummary: async (taskId: string | number, userId?: string | number): Promise<TaskTimeSummary | null> => {
     try {
-      const res = await apiClient.get(`/time-logs/task/${taskId}/summary`);
+      const url = userId ? `/time-logs/task/${taskId}/summary?userId=${userId}` : `/time-logs/task/${taskId}/summary`;
+      const res = await apiClient.get(url);
       return res.data;
     } catch (err) {
       console.error('[taskService.getTaskTimeSummary] Error:', err);

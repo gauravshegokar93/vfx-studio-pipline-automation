@@ -59,7 +59,7 @@ export default function ArtistTasksPage() {
       setArtistTasks(items);
 
       // Load time summaries for all assigned tasks
-      const summaryPromises = items.map(t => taskService.getTaskTimeSummary(t.taskId));
+      const summaryPromises = items.map(t => taskService.getTaskTimeSummary(t.taskId, artistId));
       const summaryResults = await Promise.all(summaryPromises);
       const summaryMap: Record<number, TaskTimeSummary> = {};
       summaryResults.forEach((s, idx) => {
@@ -90,10 +90,10 @@ export default function ArtistTasksPage() {
       toast({ title: 'Session Started', description: 'Timer is now active for this task.' });
       loadArtistTasks();
     } else {
-      toast({ 
-        title: 'Work Session Error', 
-        description: res.message || 'Failed to start session', 
-        variant: 'destructive' 
+      toast({
+        title: 'Work Session Error',
+        description: res.message || 'Failed to start session',
+        variant: 'destructive'
       });
     }
   };
@@ -108,10 +108,10 @@ export default function ArtistTasksPage() {
       toast({ title: 'Session Stopped', description: `Recorded ${hrs} hrs of work time.` });
       loadArtistTasks();
     } else {
-      toast({ 
-        title: 'Work Session Error', 
-        description: res.message || 'Failed to stop session', 
-        variant: 'destructive' 
+      toast({
+        title: 'Work Session Error',
+        description: res.message || 'Failed to stop session',
+        variant: 'destructive'
       });
     }
   };
@@ -131,19 +131,19 @@ export default function ArtistTasksPage() {
     setSubmittingReview(false);
 
     if (res.success) {
-      toast({ 
-        title: 'Submitted for Review', 
-        description: `Task ${selectedTask.taskCode} has been sent to review queue.` 
+      toast({
+        title: 'Submitted for Review',
+        description: `Task ${selectedTask.taskCode} has been sent to review queue.`
       });
       setSubmitModalOpen(false);
       setSelectedTask(null);
       setSubmissionRemarks('');
       loadArtistTasks();
     } else {
-      toast({ 
-        title: 'Submission Error', 
-        description: res.message || 'Failed to submit task for review', 
-        variant: 'destructive' 
+      toast({
+        title: 'Submission Error',
+        description: res.message || 'Failed to submit task for review',
+        variant: 'destructive'
       });
     }
   };
@@ -218,8 +218,21 @@ export default function ArtistTasksPage() {
               <TableBody>
                 {artistTasks.map((task) => {
                   const estBid = task.estimatedBid !== undefined && task.estimatedBid !== null ? task.estimatedBid : (task.estimatedHours ? task.estimatedHours / 8 : 0);
-                  const tgtBid = task.targetBid !== undefined && task.targetBid !== null ? task.targetBid : (task.targetHours ? task.targetHours / 8 : 0);
-                  
+
+                  let tgtBid = task.targetBid !== undefined && task.targetBid !== null ? task.targetBid : (task.targetHours ? task.targetHours / 8 : 0);
+                  if (task.assignmentsJson) {
+                    try {
+                      const assignments = typeof task.assignmentsJson === 'string' ? JSON.parse(task.assignmentsJson) : task.assignmentsJson;
+                      if (Array.isArray(assignments)) {
+                        const artistAssignment = assignments.find((a: any) => Number(a.userId) === Number(artistId));
+                        if (artistAssignment && artistAssignment.targetHours !== undefined) {
+                          tgtBid = artistAssignment.targetHours / 8;
+                        }
+                      }
+                    } catch(e) {}
+                  }
+
+
                   const summary = summaries[task.taskId];
                   const hasActive = summary?.activeSession !== null && summary?.activeSession !== undefined;
                   const actualHrs = summary ? summary.actualWorkedHours : (task.actualHours || 0);
@@ -233,7 +246,7 @@ export default function ArtistTasksPage() {
                   const isAssigned = statusId === 1 || statusName === 'Assigned';
 
                   return (
-                    <TableRow key={task.taskId} className="border-sidebar-border h-20 transition-all hover:bg-sidebar-accent/20">
+                    <TableRow key={`task-${task.taskId}`} className="border-sidebar-border h-20 transition-all hover:bg-sidebar-accent/20">
                       <TableCell className="pl-6 font-bold text-white text-lg font-mono">{task.shotCode}</TableCell>
                       <TableCell className="text-white font-mono text-sm">{task.taskCode}</TableCell>
                       <TableCell>
@@ -386,16 +399,16 @@ export default function ArtistTasksPage() {
               </div>
 
               <DialogFooter className="pt-2">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => setSubmitModalOpen(false)}
                   className="border-sidebar-border text-white hover:bg-sidebar-accent"
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={submittingReview}
                   className="bg-crimson hover:bg-crimson/80 text-white font-semibold gap-2"
                 >

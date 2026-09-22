@@ -86,8 +86,8 @@ async function assignTask(req, res) {
     const taskReq = new sql.Request(transaction);
     taskReq.input('TaskId', sql.BigInt, parsedTaskId);
     const taskResult = await taskReq.query(`
-      SELECT 
-        t.TaskID, t.TaskCode, t.WorkflowStageID, wsm.StageName, 
+      SELECT
+        t.TaskID, t.TaskCode, t.WorkflowStageID, wsm.StageName,
         t.EstimatedHours, t.DueDate, t.PriorityID, t.StatusID, t.IsActive, t.IsDeleted
       FROM TaskMaster t
       LEFT JOIN WorkflowStageMaster wsm ON t.WorkflowStageID = wsm.StageId
@@ -109,8 +109,8 @@ async function assignTask(req, res) {
     const userReq = new sql.Request(transaction);
     userReq.input('UserId', sql.BigInt, parsedUserId);
     const userResult = await userReq.query(`
-      SELECT 
-        u.UserId, u.FullName, u.RoleId, r.RoleName, 
+      SELECT
+        u.UserId, u.FullName, u.RoleId, r.RoleName,
         u.HomeDepartmentId, d.DepartmentName, u.IsActive,
         u.HomeTeamId, tm.TeamName, tm.DepartmentId as TeamDepartmentId, tm.IsActive as TeamIsActive
       FROM UserMaster u
@@ -144,6 +144,22 @@ async function assignTask(req, res) {
       return res.status(400).json({ success: false, message: deptCheck.message });
     }
 
+    // F2: Verify Allocation to Prevent Over-Allocation
+    const allocReq = new sql.Request(transaction);
+    allocReq.input('TaskId', sql.BigInt, parsedTaskId);
+    const allocResult = await allocReq.query(`
+      SELECT ISNULL(SUM(TargetHours), 0) AS totalTargetHours
+      FROM TaskAssignment
+      WHERE TaskID = @TaskId
+    `);
+    const existingTargetHours = allocResult.recordset[0].totalTargetHours;
+
+    // Check if new assignment exceeds the estimated task hours
+    if ((existingTargetHours + parsedTargetHours) > (task.EstimatedHours || 0)) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Requested allocation exceeds the remaining task bid' });
+    }
+
     // G: Verify Team Validation
     if (artist.HomeTeamId) {
       if (artist.TeamIsActive === false) {
@@ -166,9 +182,9 @@ async function assignTask(req, res) {
 
     if (existingAssign.recordset.length > 0) {
       await transaction.rollback();
-      return res.status(409).json({ 
-        success: false, 
-        message: `Task ${parsedTaskId} is already assigned to User ${parsedUserId}` 
+      return res.status(409).json({
+        success: false,
+        message: `Task ${parsedTaskId} is already assigned to User ${parsedUserId}`
       });
     }
 
@@ -207,11 +223,11 @@ async function assignTask(req, res) {
 
     await insertHistReq.query(`
       INSERT INTO TaskAssignmentHistory (
-        TaskID, AssignedToUserID, AssignedByUserID, AssignmentType, 
+        TaskID, AssignedToUserID, AssignedByUserID, AssignmentType,
         AssignedDate, DueDate, EstimatedHours, PriorityID, StatusID, Remarks, CreatedOn
       )
       VALUES (
-        @TaskId, @AssignedToUserID, @AssignedByUserID, @AssignmentType, 
+        @TaskId, @AssignedToUserID, @AssignedByUserID, @AssignmentType,
         GETDATE(), @DueDate, @EstimatedHours, @PriorityID, @StatusID, @Remarks, GETDATE()
       )
     `);
@@ -265,9 +281,10 @@ async function assignTask(req, res) {
 // 1B. PUT /api/assignments/:taskId/target - Adjust Target Bid without changing assignment
 async function adjustTarget(req, res) {
   const { taskId } = req.params;
-  const { targetBid, targetHours, remarks } = req.body || {};
+  const { userId, targetBid, targetHours, remarks } = req.body || {};
 
   const parsedTaskId = parseInt(taskId, 10);
+  const parsedUserId = parseInt(userId, 10);
   const parsedTargetHours = targetBid !== undefined && targetBid !== null && !isNaN(parseFloat(targetBid))
     ? parseFloat(targetBid) * 8
     : (parseFloat(targetHours) || 0);
@@ -276,7 +293,11 @@ async function adjustTarget(req, res) {
   if (isNaN(parsedTaskId) || parsedTaskId <= 0) {
     return res.status(400).json({ success: false, message: 'taskId must be a valid positive number' });
   }
-  
+
+  if (isNaN(parsedUserId) || parsedUserId <= 0) {
+    return res.status(400).json({ success: false, message: 'userId is required and must be a valid positive number' });
+  }
+
   if (parsedTargetHours < 0) {
     return res.status(400).json({ success: false, message: 'Target hours cannot be negative' });
   }
@@ -314,29 +335,45 @@ async function adjustTarget(req, res) {
       return res.status(400).json({ success: false, message: 'Cannot adjust target for an inactive or deleted task' });
     }
 
-    // Verify there is an active assignment
+    // Verify there is an active assignment for this specific user
     const assignReq = new sql.Request(transaction);
     assignReq.input('TaskId', sql.BigInt, parsedTaskId);
+    assignReq.input('UserId', sql.BigInt, parsedUserId);
     const assignResult = await assignReq.query(`
-      SELECT TOP 1 AssignmentID, UserID, TargetHours
-      FROM TaskAssignment 
-      WHERE TaskID = @TaskId
-      ORDER BY AssignmentID DESC
+      SELECT AssignmentID, UserID, TargetHours
+      FROM TaskAssignment
+      WHERE TaskID = @TaskId AND UserID = @UserId
     `);
 
     if (assignResult.recordset.length === 0) {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Cannot adjust target: Task is not currently assigned to anyone' });
+      return res.status(400).json({ success: false, message: 'Cannot adjust target: Task is not currently assigned to this artist' });
     }
 
     const currentAssignment = assignResult.recordset[0];
+
+    // Check over-allocation
+    const allocReq = new sql.Request(transaction);
+    allocReq.input('TaskId', sql.BigInt, parsedTaskId);
+    allocReq.input('UserId', sql.BigInt, parsedUserId);
+    const allocResult = await allocReq.query(`
+      SELECT ISNULL(SUM(TargetHours), 0) AS otherTargetHours
+      FROM TaskAssignment
+      WHERE TaskID = @TaskId AND UserID != @UserId
+    `);
+    const otherTargetHours = allocResult.recordset[0].otherTargetHours;
+
+    if ((otherTargetHours + parsedTargetHours) > (task.EstimatedHours || 0)) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Requested allocation exceeds the remaining task bid' });
+    }
 
     // Update TaskAssignment
     const updateAssignReq = new sql.Request(transaction);
     updateAssignReq.input('AssignmentID', sql.BigInt, currentAssignment.AssignmentID);
     updateAssignReq.input('TargetHours', sql.Decimal(18, 2), parsedTargetHours);
     updateAssignReq.input('Remarks', sql.VarChar(500), remarks || null);
-    
+
     await updateAssignReq.query(`
       UPDATE TaskAssignment
       SET TargetHours = @TargetHours,
@@ -358,11 +395,11 @@ async function adjustTarget(req, res) {
 
     await insertHistReq.query(`
       INSERT INTO TaskAssignmentHistory (
-        TaskID, AssignedToUserID, AssignedByUserID, AssignmentType, 
+        TaskID, AssignedToUserID, AssignedByUserID, AssignmentType,
         AssignedDate, DueDate, EstimatedHours, PriorityID, StatusID, Remarks, CreatedOn
       )
       VALUES (
-        @TaskId, @AssignedToUserID, @AssignedByUserID, @AssignmentType, 
+        @TaskId, @AssignedToUserID, @AssignedByUserID, @AssignmentType,
         GETDATE(), @DueDate, @EstimatedHours, @PriorityID, @StatusID, @Remarks, GETDATE()
       )
     `);
@@ -469,7 +506,7 @@ async function getArtistWorkload(req, res) {
     const workloadReq = pool.request();
     workloadReq.input('ArtistId', sql.BigInt, parsedArtistId);
     const workloadResult = await workloadReq.query(`
-      SELECT 
+      SELECT
         ISNULL(SUM(ta.TargetHours), 0) AS allocatedHours,
         COUNT(ta.AssignmentID) AS assignedTaskCount
       FROM TaskAssignment ta
@@ -506,9 +543,9 @@ async function getEligibleArtists(req, res) {
     const taskResult = await pool.request()
       .input('TaskId', sql.BigInt, parsedTaskId)
       .query(`
-        SELECT t.TaskID, wsm.StageName 
-        FROM TaskMaster t 
-        LEFT JOIN WorkflowStageMaster wsm ON t.WorkflowStageID = wsm.StageId 
+        SELECT t.TaskID, wsm.StageName
+        FROM TaskMaster t
+        LEFT JOIN WorkflowStageMaster wsm ON t.WorkflowStageID = wsm.StageId
         WHERE t.TaskID = @TaskId
       `);
 
@@ -518,8 +555,8 @@ async function getEligibleArtists(req, res) {
     const task = taskResult.recordset[0];
 
     const usersResult = await pool.request().query(`
-      SELECT 
-        u.UserId, u.FullName, r.RoleName, 
+      SELECT
+        u.UserId, u.FullName, r.RoleName,
         d.DepartmentName, d.DepartmentId,
         tm.TeamName, tm.DepartmentId as TeamDepartmentId, tm.IsActive as TeamIsActive,
         rm.FullName as ReportingManagerName
@@ -559,10 +596,419 @@ async function getEligibleArtists(req, res) {
   }
 }
 
+// 5. DELETE /api/assignments/:assignmentId - Unassign artist from task
+async function unassignTask(req, res) {
+  const { assignmentId } = req.params;
+  const parsedAssignmentId = parseInt(assignmentId, 10);
+
+  if (isNaN(parsedAssignmentId) || parsedAssignmentId <= 0) {
+    return res.status(400).json({ success: false, message: 'Invalid assignmentId' });
+  }
+
+  const assignedBy = req.user?.userId;
+  if (!assignedBy) {
+    return res.status(401).json({ success: false, message: 'Unauthenticated user' });
+  }
+
+  let pool;
+  let transaction;
+
+  try {
+    pool = await sql.connect(config);
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    // 1. Check if assignment exists
+    const checkReq = new sql.Request(transaction);
+    checkReq.input('AssignmentID', sql.BigInt, parsedAssignmentId);
+    const assignResult = await checkReq.query(`
+      SELECT AssignmentID, TaskID, UserID, TargetHours, StatusID
+      FROM TaskAssignment
+      WHERE AssignmentID = @AssignmentID
+    `);
+
+    if (assignResult.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+
+    const assignment = assignResult.recordset[0];
+
+    // 2. Check for production history (TimeLog)
+    const historyReq = new sql.Request(transaction);
+    historyReq.input('TaskID', sql.BigInt, assignment.TaskID);
+    historyReq.input('UserID', sql.BigInt, assignment.UserID);
+    const historyResult = await historyReq.query(`
+      SELECT TOP 1 TimeLogID FROM TimeLog WHERE TaskID = @TaskID AND UserID = @UserID
+    `);
+
+    if (historyResult.recordset.length > 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Safe historical unassignment is not supported without schema changes. The artist has production history on this task.',
+        limitation: true
+      });
+    }
+
+    // 3. Get Task info for history logging
+    const taskReq = new sql.Request(transaction);
+    taskReq.input('TaskID', sql.BigInt, assignment.TaskID);
+    const taskResult = await taskReq.query(`
+      SELECT TaskID, DueDate, EstimatedHours, PriorityID, StatusID
+      FROM TaskMaster WHERE TaskID = @TaskID
+    `);
+
+    const task = taskResult.recordset[0] || {};
+
+    // 4. Log unassignment to TaskAssignmentHistory
+    const insertHistReq = new sql.Request(transaction);
+    insertHistReq.input('TaskId', sql.BigInt, assignment.TaskID);
+    insertHistReq.input('AssignedToUserID', sql.BigInt, assignment.UserID);
+    insertHistReq.input('AssignedByUserID', sql.BigInt, assignedBy);
+    insertHistReq.input('AssignmentType', sql.NVarChar(50), 'Unassigned');
+    insertHistReq.input('DueDate', sql.DateTime, task.DueDate || null);
+    insertHistReq.input('EstimatedHours', sql.Decimal(18, 2), task.EstimatedHours || null);
+    insertHistReq.input('PriorityID', sql.BigInt, task.PriorityID || null);
+    insertHistReq.input('StatusID', sql.BigInt, assignment.StatusID);
+    insertHistReq.input('Remarks', sql.NVarChar(1000), 'Artist unassigned');
+
+    await insertHistReq.query(`
+      INSERT INTO TaskAssignmentHistory (
+        TaskID, AssignedToUserID, AssignedByUserID, AssignmentType,
+        AssignedDate, DueDate, EstimatedHours, PriorityID, StatusID, Remarks, CreatedOn
+      )
+      VALUES (
+        @TaskId, @AssignedToUserID, @AssignedByUserID, @AssignmentType,
+        GETDATE(), @DueDate, @EstimatedHours, @PriorityID, @StatusID, @Remarks, GETDATE()
+      )
+    `);
+
+    // 5. Delete the TaskAssignment row
+    const deleteReq = new sql.Request(transaction);
+    deleteReq.input('AssignmentID', sql.BigInt, parsedAssignmentId);
+    await deleteReq.query(`
+      DELETE FROM TaskAssignment WHERE AssignmentID = @AssignmentID
+    `);
+
+    // (Optional) If it was the last assignment, we could update the TaskMaster status, but the instructions say "DO NOT modify other artists" and "Task remains". We leave TaskMaster Status as is for now.
+
+    await transaction.commit();
+
+    return res.json({
+      success: true,
+      message: 'Artist unassigned successfully',
+      assignmentId: parsedAssignmentId,
+      taskId: assignment.TaskID,
+      userId: assignment.UserID,
+      releasedTargetHours: assignment.TargetHours
+    });
+
+  } catch (err) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error('[unassignTask] Rollback error:', rollbackErr);
+      }
+    }
+    console.error('[unassignTask] Transaction error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to unassign task', error: err.message });
+  }
+}
+
+// 6. POST /api/assignments/:assignmentId/reassign - Reassign remaining bid
+async function reassignRemainingBid(req, res) {
+  const { assignmentId } = req.params;
+  const { newUserId } = req.body;
+  const parsedAssignmentId = parseInt(assignmentId, 10);
+  const parsedNewUserId = parseInt(newUserId, 10);
+
+  if (isNaN(parsedAssignmentId) || parsedAssignmentId <= 0) {
+    return res.status(400).json({ success: false, message: 'Invalid assignmentId' });
+  }
+  if (isNaN(parsedNewUserId) || parsedNewUserId <= 0) {
+    return res.status(400).json({ success: false, message: 'Invalid newUserId' });
+  }
+
+  const assignedBy = req.user?.userId;
+  if (!assignedBy) {
+    return res.status(401).json({ success: false, message: 'Unauthenticated user' });
+  }
+
+  let pool;
+  let transaction;
+
+  try {
+    pool = await sql.connect(config);
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    // 1. Check if original assignment exists
+    const checkReq = new sql.Request(transaction);
+    checkReq.input('AssignmentID', sql.BigInt, parsedAssignmentId);
+    const assignResult = await checkReq.query(`
+      SELECT ta.AssignmentID, ta.TaskID, ta.UserID as OriginalUserID, ta.TargetHours, ta.StatusID,
+             u.FullName as OriginalArtistName, tm.EstimatedHours, tm.PriorityID, tm.DueDate
+      FROM TaskAssignment ta
+      JOIN UserMaster u ON ta.UserID = u.UserId
+      JOIN TaskMaster tm ON ta.TaskID = tm.TaskID
+      WHERE ta.AssignmentID = @AssignmentID
+    `);
+
+    if (assignResult.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Original assignment not found' });
+    }
+
+    const origAssign = assignResult.recordset[0];
+    const taskId = origAssign.TaskID;
+    const origUserId = origAssign.OriginalUserID;
+
+    if (origUserId === parsedNewUserId) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'New user cannot be the same as the original user' });
+    }
+
+    // 2. Validate new user exists and is active
+    const userReq = new sql.Request(transaction);
+    userReq.input('NewUserId', sql.BigInt, parsedNewUserId);
+    const userResult = await userReq.query(`
+      SELECT UserId, IsActive FROM UserMaster WHERE UserId = @NewUserId
+    `);
+    if (userResult.recordset.length === 0 || !userResult.recordset[0].IsActive) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'New user is invalid or inactive' });
+    }
+
+    // 3. Duplicate Assignment Protection for new user
+    const checkDupReq = new sql.Request(transaction);
+    checkDupReq.input('TaskId', sql.BigInt, taskId);
+    checkDupReq.input('NewUserId', sql.BigInt, parsedNewUserId);
+    const dupResult = await checkDupReq.query(`
+      SELECT 1 FROM TaskAssignment WHERE TaskID = @TaskId AND UserID = @NewUserId
+    `);
+    if (dupResult.recordset.length > 0) {
+      await transaction.rollback();
+      return res.status(409).json({ success: false, message: 'New user is already assigned to this task' });
+    }
+
+    // 4. Calculate actual hours for ORIGINAL USER ONLY
+    const actualReq = new sql.Request(transaction);
+    actualReq.input('TaskId', sql.BigInt, taskId);
+    actualReq.input('OriginalUserId', sql.BigInt, origUserId);
+    const actualResult = await actualReq.query(`
+      SELECT ISNULL(SUM(HoursWorked), 0) AS ActualHours FROM TimeLog WHERE TaskID = @TaskId AND UserID = @OriginalUserId
+    `);
+    const actualHours = actualResult.recordset[0].ActualHours;
+
+    // 5. Calculate remaining hours
+    const remainingHours = origAssign.TargetHours - actualHours;
+    if (remainingHours <= 0) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'No remaining allocation to reassign' });
+    }
+
+    // 6. Transfer remaining allocation
+    if (actualHours === 0) {
+      // Case 1: Zero actuals. Delete original assignment.
+      const deleteReq = new sql.Request(transaction);
+      deleteReq.input('AssignmentID', sql.BigInt, parsedAssignmentId);
+      await deleteReq.query(`
+        DELETE FROM TaskAssignment WHERE AssignmentID = @AssignmentID
+      `);
+
+      // Log unassignment for original artist
+      const insertUnassignHistReq = new sql.Request(transaction);
+      insertUnassignHistReq.input('TaskId', sql.BigInt, taskId);
+      insertUnassignHistReq.input('AssignedToUserID', sql.BigInt, origUserId);
+      insertUnassignHistReq.input('AssignedByUserID', sql.BigInt, assignedBy);
+      insertUnassignHistReq.input('AssignmentType', sql.NVarChar(50), 'Unassigned');
+      insertUnassignHistReq.input('DueDate', sql.DateTime, origAssign.DueDate || null);
+      insertUnassignHistReq.input('EstimatedHours', sql.Decimal(18, 2), origAssign.EstimatedHours || null);
+      insertUnassignHistReq.input('PriorityID', sql.BigInt, origAssign.PriorityID || null);
+      insertUnassignHistReq.input('StatusID', sql.BigInt, origAssign.StatusID);
+      insertUnassignHistReq.input('Remarks', sql.NVarChar(1000), `Reassigned remaining bid to User ${parsedNewUserId}`);
+
+      await insertUnassignHistReq.query(`
+        INSERT INTO TaskAssignmentHistory (
+          TaskID, AssignedToUserID, AssignedByUserID, AssignmentType,
+          AssignedDate, DueDate, EstimatedHours, PriorityID, StatusID, Remarks, CreatedOn
+        )
+        VALUES (
+          @TaskId, @AssignedToUserID, @AssignedByUserID, @AssignmentType,
+          GETDATE(), @DueDate, @EstimatedHours, @PriorityID, @StatusID, @Remarks, GETDATE()
+        )
+      `);
+    } else {
+      // Case 2: Partial actuals. Reduce original assignment TargetHours.
+      const updateReq = new sql.Request(transaction);
+      updateReq.input('AssignmentID', sql.BigInt, parsedAssignmentId);
+      updateReq.input('TargetHours', sql.Decimal(18, 2), actualHours);
+      await updateReq.query(`
+        UPDATE TaskAssignment SET TargetHours = @TargetHours WHERE AssignmentID = @AssignmentID
+      `);
+
+      // Log target adjustment for original artist
+      const insertAdjustHistReq = new sql.Request(transaction);
+      insertAdjustHistReq.input('TaskId', sql.BigInt, taskId);
+      insertAdjustHistReq.input('AssignedToUserID', sql.BigInt, origUserId);
+      insertAdjustHistReq.input('AssignedByUserID', sql.BigInt, assignedBy);
+      insertAdjustHistReq.input('AssignmentType', sql.NVarChar(50), 'Adjust Target');
+      insertAdjustHistReq.input('DueDate', sql.DateTime, origAssign.DueDate || null);
+      insertAdjustHistReq.input('EstimatedHours', sql.Decimal(18, 2), origAssign.EstimatedHours || null);
+      insertAdjustHistReq.input('PriorityID', sql.BigInt, origAssign.PriorityID || null);
+      insertAdjustHistReq.input('StatusID', sql.BigInt, origAssign.StatusID);
+      insertAdjustHistReq.input('Remarks', sql.NVarChar(1000), `Target reduced to ${actualHours}h due to reassignment of ${remainingHours}h to User ${parsedNewUserId}`);
+
+      await insertAdjustHistReq.query(`
+        INSERT INTO TaskAssignmentHistory (
+          TaskID, AssignedToUserID, AssignedByUserID, AssignmentType,
+          AssignedDate, DueDate, EstimatedHours, PriorityID, StatusID, Remarks, CreatedOn
+        )
+        VALUES (
+          @TaskId, @AssignedToUserID, @AssignedByUserID, @AssignmentType,
+          GETDATE(), @DueDate, @EstimatedHours, @PriorityID, @StatusID, @Remarks, GETDATE()
+        )
+      `);
+    }
+
+    // 7. Verify Total Allocation to Prevent Over-Allocation
+    const allocReq = new sql.Request(transaction);
+    allocReq.input('TaskId', sql.BigInt, taskId);
+    const allocResult = await allocReq.query(`
+      SELECT ISNULL(SUM(TargetHours), 0) AS totalTargetHours
+      FROM TaskAssignment
+      WHERE TaskID = @TaskId
+    `);
+    const existingTargetHours = allocResult.recordset[0].totalTargetHours;
+
+    // Requested reassignment would cause total TargetHours to exceed TaskMaster.EstimatedHours
+    if ((existingTargetHours + remainingHours) > (origAssign.EstimatedHours || 0)) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Requested reassignment would cause TaskAssignment total TargetHours to exceed TaskMaster.EstimatedHours' });
+    }
+
+    // 8. Resolve Assigned StatusId for new assignment
+    const statusReq = new sql.Request(transaction);
+    const statusResult = await statusReq.query(`
+      SELECT TOP 1 StatusId FROM StatusMaster WHERE StatusName = 'Assigned'
+    `);
+    const assignedStatusId = statusResult.recordset[0]?.StatusId || 1;
+
+    // 9. Insert into TaskAssignment for new user
+    const insertAssignReq = new sql.Request(transaction);
+    insertAssignReq.input('TaskId', sql.BigInt, taskId);
+    insertAssignReq.input('NewUserId', sql.BigInt, parsedNewUserId);
+    insertAssignReq.input('AssignedBy', sql.BigInt, assignedBy);
+    insertAssignReq.input('TargetHours', sql.Decimal(18, 2), remainingHours);
+    insertAssignReq.input('StatusID', sql.BigInt, assignedStatusId);
+    insertAssignReq.input('Remarks', sql.VarChar(500), 'Reassigned remaining bid from original artist');
+
+    await insertAssignReq.query(`
+      INSERT INTO TaskAssignment (TaskID, UserID, AssignedBy, AssignedDate, TargetHours, StatusID, Remarks)
+      VALUES (@TaskId, @NewUserId, @AssignedBy, SYSDATETIME(), @TargetHours, @StatusID, @Remarks)
+    `);
+
+    // 10. Insert into TaskAssignmentHistory for new user
+    const insertHistReq = new sql.Request(transaction);
+    insertHistReq.input('TaskId', sql.BigInt, taskId);
+    insertHistReq.input('NewUserId', sql.BigInt, parsedNewUserId);
+    insertHistReq.input('AssignedByUserID', sql.BigInt, assignedBy);
+    insertHistReq.input('AssignmentType', sql.NVarChar(50), 'Assign');
+    insertHistReq.input('DueDate', sql.DateTime, origAssign.DueDate || null);
+    insertHistReq.input('EstimatedHours', sql.Decimal(18, 2), origAssign.EstimatedHours || null);
+    insertHistReq.input('PriorityID', sql.BigInt, origAssign.PriorityID || null);
+    insertHistReq.input('StatusID', sql.BigInt, assignedStatusId);
+    insertHistReq.input('Remarks', sql.NVarChar(1000), `Reassigned from ${origAssign.OriginalArtistName}. Transferred Remaining: ${remainingHours.toFixed(2)} Hours (${(remainingHours/8).toFixed(2)} Bid)`);
+
+    await insertHistReq.query(`
+      INSERT INTO TaskAssignmentHistory (
+        TaskID, AssignedToUserID, AssignedByUserID, AssignmentType,
+        AssignedDate, DueDate, EstimatedHours, PriorityID, StatusID, Remarks, CreatedOn
+      )
+      VALUES (
+        @TaskId, @NewUserId, @AssignedByUserID, @AssignmentType,
+        GETDATE(), @DueDate, @EstimatedHours, @PriorityID, @StatusID, @Remarks, GETDATE()
+      )
+    `);
+
+    // 11. Evaluate TaskMaster Status
+    // The task must NOT remain globally locked as Completed if a new artist still needs to execute the transferred work.
+    const taskStatusReq = new sql.Request(transaction);
+    taskStatusReq.input('TaskId', sql.BigInt, taskId);
+    const taskStatusRes = await taskStatusReq.query(`
+      SELECT StatusID FROM TaskMaster WHERE TaskID = @TaskId
+    `);
+    const currentTaskStatusId = taskStatusRes.recordset[0]?.StatusID;
+
+    if (currentTaskStatusId === 4) { // 4 = Completed
+      // Check for any active assignments to determine the appropriate workflow status
+      const checkActiveReq = new sql.Request(transaction);
+      checkActiveReq.input('TaskId', sql.BigInt, taskId);
+      const checkActiveRes = await checkActiveReq.query(`
+        SELECT StatusID FROM TaskAssignment WHERE TaskID = @TaskId
+      `);
+      const assignStatuses = checkActiveRes.recordset.map(r => r.StatusID);
+
+      let newGlobalStatusId = assignedStatusId; // Default to Assigned (1)
+      if (assignStatuses.includes(2)) {
+        newGlobalStatusId = 2; // In Progress
+      } else if (assignStatuses.includes(5)) {
+        newGlobalStatusId = 5; // Rework
+      } else if (assignStatuses.includes(3)) {
+        newGlobalStatusId = 3; // Review
+      }
+
+      const updateGlobalReq = new sql.Request(transaction);
+      updateGlobalReq.input('TaskId', sql.BigInt, taskId);
+      updateGlobalReq.input('StatusID', sql.BigInt, newGlobalStatusId);
+      updateGlobalReq.input('ModifiedBy', sql.BigInt, assignedBy);
+      await updateGlobalReq.query(`
+        UPDATE TaskMaster
+        SET StatusID = @StatusID,
+            ModifiedBy = @ModifiedBy,
+            ModifiedDate = SYSDATETIME()
+        WHERE TaskID = @TaskId
+      `);
+
+      // Log the global status change
+      await logTaskHistory(transaction, taskId, currentTaskStatusId, newGlobalStatusId, assignedBy, 'Reopened task due to reassignment of remaining bid');
+    } else {
+      // TaskMaster status is NOT changed merely because a reassignment occurred (unless it was Completed).
+    }
+
+    await transaction.commit();
+
+    return res.json({
+      success: true,
+      message: 'Remaining bid reassigned successfully',
+      taskId: taskId,
+      originalUserId: origUserId,
+      newUserId: parsedNewUserId,
+      transferredHours: remainingHours,
+      transferredBid: remainingHours / 8
+    });
+
+  } catch (err) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error('[reassignRemainingBid] Rollback error:', rollbackErr);
+      }
+    }
+    console.error('[reassignRemainingBid] Transaction error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to reassign remaining bid', error: err.message });
+  }
+}
+
 router.post('/', secured(assignTask));
 router.put('/:taskId/target', secured(adjustTarget));
 router.get('/eligible-artists', securedReadOnly(getEligibleArtists));
 router.get('/history/:taskId', securedReadOnly(getAssignmentHistory));
 router.get('/workload/:artistId', securedReadOnly(getArtistWorkload));
+router.delete('/:assignmentId', secured(unassignTask));
+router.post('/:assignmentId/reassign', secured(reassignRemainingBid));
 
 module.exports = router;

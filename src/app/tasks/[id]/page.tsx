@@ -84,7 +84,7 @@ function formatDurationDisplay(hours: number): string {
 export default function TaskDetailPage() {
   const { id } = useParams();
   const { toast } = useToast();
-  const { role: authRole } = useAuth();
+  const { role: authRole, user: authUser } = useAuth();
 
   const [task, setTask] = useState<TaskItem | null>(null);
   const [summary, setSummary] = useState<TaskTimeSummary | null>(null);
@@ -117,7 +117,7 @@ export default function TaskDetailPage() {
     try {
       const [t, sum, l, revHist, v, tl] = await Promise.all([
         taskService.getById(id as string),
-        taskService.getTaskTimeSummary(id as string),
+        taskService.getTaskTimeSummary(id as string, authRole === 'Artist' ? (authUser?.userId || authUser?.id) : undefined),
         taskService.getTimeLogs(id as string),
         taskService.getTaskReviewHistory(id as string),
         taskService.getVersions(id as string),
@@ -125,7 +125,8 @@ export default function TaskDetailPage() {
       ]);
       setTask(t);
       setSummary(sum);
-      setLogs(l);
+      const filteredLogs = authRole === 'Artist' ? l.filter((log: any) => Number(log.userId) === Number(authUser?.userId || authUser?.id)) : l;
+      setLogs(filteredLogs);
       setReviews(revHist.reviews || []);
       setReworks(revHist.reworks || []);
       setVersions(v);
@@ -177,7 +178,20 @@ export default function TaskDetailPage() {
     : 0;
 
   const currentActualWorkedHours = Math.max(0, closedWorkedHours + liveActiveHours);
-  const baseAllocationHours = summary?.targetHours || summary?.estimatedHours || task?.targetHours || task?.estimatedHours || 0;
+  let baseAllocationHours = summary?.targetHours || summary?.estimatedHours || task?.targetHours || task?.estimatedHours || 0;
+
+  if (authRole === 'Artist' && task?.assignmentsJson) {
+    try {
+      const assignments = typeof task.assignmentsJson === 'string' ? JSON.parse(task.assignmentsJson) : task.assignmentsJson;
+      if (Array.isArray(assignments)) {
+        const artistAssignment = assignments.find((a: any) => Number(a.userId) === Number(authUser?.userId || authUser?.id));
+        if (artistAssignment && artistAssignment.targetHours !== undefined) {
+          baseAllocationHours = artistAssignment.targetHours;
+        }
+      }
+    } catch(e) {}
+  }
+
   const currentRemainingHours = baseAllocationHours - currentActualWorkedHours;
 
   const handleStartTimer = async () => {
@@ -299,7 +313,19 @@ export default function TaskDetailPage() {
   }
 
   const estimatedBid = summary?.estimatedBid ?? task.estimatedBid ?? (task.estimatedHours ? task.estimatedHours / 8 : 0);
-  const targetBid = summary?.targetBid ?? task.targetBid ?? (task.targetHours ? task.targetHours / 8 : 0);
+  
+  let targetBid = summary?.targetBid ?? task.targetBid ?? (task.targetHours ? task.targetHours / 8 : 0);
+  if (authRole === 'Artist' && task?.assignmentsJson) {
+    try {
+      const assignments = typeof task.assignmentsJson === 'string' ? JSON.parse(task.assignmentsJson) : task.assignmentsJson;
+      if (Array.isArray(assignments)) {
+        const artistAssignment = assignments.find((a: any) => Number(a.userId) === Number(authUser?.userId || authUser?.id));
+        if (artistAssignment && artistAssignment.targetHours !== undefined) {
+          targetBid = artistAssignment.targetHours / 8;
+        }
+      }
+    } catch(e) {}
+  }
   const hasActiveSession = summary?.activeSession !== null && summary?.activeSession !== undefined;
 
   const statusId = task.statusId;
@@ -477,7 +503,7 @@ export default function TaskDetailPage() {
               <CardContent className="space-y-6">
                 <div className="flex items-center gap-3">
                   <User className="text-crimson w-4 h-4" />
-                  <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Artist</p><p className="text-white text-sm font-semibold">{task.assignedArtist || 'Unassigned'}</p></div>
+                  <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Artist</p><p className="text-white text-sm font-semibold">{authRole === 'Artist' ? (authUser?.fullName || 'You') : (task.assignedArtist || 'Unassigned')}</p></div>
                 </div>
                 <div className="flex items-center gap-3">
                   <Zap className="text-yellow-500 w-4 h-4" />
@@ -538,7 +564,7 @@ export default function TaskDetailPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1 uppercase font-bold">Target Allocation</p>
                   <p className="text-3xl font-headline text-white">{targetBid.toFixed(2)} Bid</p>
-                  <p className="text-xs text-muted-foreground">{task.targetHours || 0} hrs (Assigned)</p>
+                  <p className="text-xs text-muted-foreground">{summary?.targetHours ?? task.targetHours ?? 0} hrs (Assigned)</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1 uppercase font-bold">Actual Logged</p>
@@ -592,7 +618,7 @@ export default function TaskDetailPage() {
                           const isOpen = log.endTime === null || log.endTime === undefined;
                           const hrs = parseFloat(String(log.hoursWorked)) || 0;
                           return (
-                            <TableRow key={log.timeLogId || log.id} className="border-sidebar-border">
+                            <TableRow key={`timelog-${log.timeLogId || log.id}`} className="border-sidebar-border">
                               <TableCell className="text-white font-medium font-mono">
                                 {log.workDate ? formatDateLocal(log.workDate) : 'N/A'}
                               </TableCell>
@@ -796,7 +822,7 @@ export default function TaskDetailPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {versions.map(v => (
-                    <Card key={v.id} className="bg-card border-none overflow-hidden group">
+                    <Card key={`version-${v.id}`} className="bg-card border-none overflow-hidden group">
                       <div className="aspect-video bg-black relative">
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
                           <PlayCircle className="w-12 h-12 text-white" />
@@ -826,7 +852,7 @@ export default function TaskDetailPage() {
                     <div className="relative border-l-2 border-sidebar-border ml-3 pl-6 space-y-6">
                       {timeline.map((event, idx) => (
                         <div 
-                          key={idx} 
+                          key={`timeline-${event.type || 'evt'}-${event.id || idx}`} 
                           className="relative opacity-0 animate-fade-in-up-sm"
                           style={{ animationDelay: `${Math.min(idx * 60, 600)}ms` }}
                         >
