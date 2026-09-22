@@ -33,6 +33,7 @@ export interface User {
   avatarUrl?: string;
   isFirstLogin: boolean;
   permissions?: string[];
+  hasDependencies?: boolean;
 }
 
 export interface UserCredential {

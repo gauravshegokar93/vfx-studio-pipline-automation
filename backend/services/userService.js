@@ -62,7 +62,8 @@ async function getUsers(query, currentUser) {
         reportingManagerId: user.ReportingManagerId,
         reportingManagerName: user.ReportingManagerName,
         joiningDate: user.JoiningDate,
-        isActive: Boolean(user.IsActive)
+        isActive: Boolean(user.IsActive),
+        hasDependencies: Boolean(user.HasDependencies)
     }));
 
     return {
@@ -300,7 +301,7 @@ async function toggleUserStatus(userId, requestedIsActive, currentUser) {
 
     // Self protection check (Part 4)
     if (currentUser && String(currentUser.userId) === String(userId) && !targetIsActive) {
-        const err = new Error('You cannot deactivate your own account.');
+        const err = new Error('Cannot deactivate or delete the currently logged-in user.');
         err.statusCode = 400;
         throw err;
     }
@@ -339,7 +340,7 @@ async function deleteUser(userId, currentUser) {
 
     // Self deletion check (Part 4 / 15)
     if (currentUser && String(currentUser.userId) === String(userId)) {
-        const err = new Error('You cannot delete your own account.');
+        const err = new Error('Cannot deactivate or delete the currently logged-in user.');
         err.statusCode = 400;
         throw err;
     }

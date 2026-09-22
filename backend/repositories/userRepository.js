@@ -120,7 +120,22 @@ async function getUsers(filters = {}) {
           um.ReportingManagerId,
           mgr.FullName AS ReportingManagerName,
           um.IsActive,
-          um.JoiningDate
+          um.JoiningDate,
+          (
+            CASE WHEN EXISTS (SELECT 1 FROM TaskAssignment WHERE UserID = um.UserId OR AssignedBy = um.UserId)
+                   OR EXISTS (SELECT 1 FROM TaskAssignmentHistory WHERE AssignedToUserID = um.UserId OR AssignedByUserID = um.UserId)
+                   OR EXISTS (SELECT 1 FROM TimeLog WHERE UserID = um.UserId)
+                   OR EXISTS (SELECT 1 FROM TaskReview WHERE ReviewerID = um.UserId)
+                   OR EXISTS (SELECT 1 FROM TaskRework WHERE RequestedBy = um.UserId OR AssignedToUserID = um.UserId OR AssignedByUserID = um.UserId OR CreatedBy = um.UserId OR ModifiedBy = um.UserId)
+                   OR EXISTS (SELECT 1 FROM TaskComment WHERE UserID = um.UserId)
+                   OR EXISTS (SELECT 1 FROM TaskHistory WHERE ChangedBy = um.UserId)
+                   OR EXISTS (SELECT 1 FROM TaskTransferHistory WHERE TransferredByUserID = um.UserId OR FromUserID = um.UserId OR ToUserID = um.UserId)
+                   OR EXISTS (SELECT 1 FROM LeaveRequest WHERE UserId = um.UserId OR SupervisorId = um.UserId OR ApprovedBy = um.UserId OR RejectedBy = um.UserId OR CancelledBy = um.UserId)
+                   OR EXISTS (SELECT 1 FROM UserTransferHistory WHERE UserId = um.UserId OR OldReportingManagerId = um.UserId OR NewReportingManagerId = um.UserId OR TransferredBy = um.UserId)
+                   OR EXISTS (SELECT 1 FROM ImportBatch WHERE StartedBy = um.UserId)
+                   OR EXISTS (SELECT 1 FROM UserMaster sub WHERE sub.ReportingManagerId = um.UserId AND sub.UserId <> um.UserId)
+            THEN 1 ELSE 0 END
+          ) AS HasDependencies
       FROM UserMaster um
       LEFT JOIN RoleMaster rm ON rm.RoleId = um.RoleId
       LEFT JOIN DepartmentMaster dm ON dm.DepartmentId = um.HomeDepartmentId

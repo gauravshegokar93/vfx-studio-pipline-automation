@@ -256,6 +256,11 @@ export default function UserManagementPage() {
   const [deleteConfirmCode, setDeleteConfirmCode] = useState('');
   const [deleting, setDeleting] = useState(false);
 
+  // Deactivate modal
+  const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
+  const [userToDeactivate, setUserToDeactivate] = useState<any>(null);
+  const [deactivating, setDeactivating] = useState(false);
+
   // Role-based access
   const roleName = currentUser?.roleName || currentUser?.role || '';
   const isPH = roleName === 'Production Head' || roleName === 'Super Admin';
@@ -388,9 +393,48 @@ export default function UserManagementPage() {
 
   // ==================== Handlers ====================
 
+  const handleOpenDeactivateModal = (user: any) => {
+    const isSelf = String(currentUser?.userId || currentUser?.id) === String(user.userId || user.id);
+    if (isSelf) {
+      toast({ variant: 'destructive', title: 'Action Denied', description: 'Cannot deactivate or delete the currently logged-in user.' });
+      return;
+    }
+    setUserToDeactivate(user);
+    setDeactivateModalOpen(true);
+  };
+
+  const handleConfirmDeactivateUser = async () => {
+    if (!userToDeactivate) return;
+    const userId = userToDeactivate.userId || userToDeactivate.id;
+    setDeactivating(true);
+    try {
+      await userService.updateUserStatus(userId, false);
+      toast({
+        title: "User Deactivated",
+        description: `${userToDeactivate.fullName || userToDeactivate.name} has been deactivated successfully.`
+      });
+      setDeactivateModalOpen(false);
+      setUserToDeactivate(null);
+      fetchUsers();
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: "Action Denied", description: e.message || 'Failed to deactivate user' });
+    } finally {
+      setDeactivating(false);
+    }
+  };
+
   const handleToggleUserStatus = async (user: any) => {
     const userId = user.userId || user.id;
     const currentActive = Boolean(user.isActive ?? user.IsActive);
+    const isSelf = String(currentUser?.userId || currentUser?.id) === String(userId);
+    if (isSelf) {
+      toast({ variant: 'destructive', title: 'Action Denied', description: 'Cannot deactivate or delete the currently logged-in user.' });
+      return;
+    }
+    if (currentActive && user.hasDependencies) {
+      handleOpenDeactivateModal(user);
+      return;
+    }
     try {
       await userService.updateUserStatus(userId, !currentActive);
       toast({
@@ -404,6 +448,15 @@ export default function UserManagementPage() {
   };
 
   const handleOpenDeleteModal = (user: any) => {
+    const isSelf = String(currentUser?.userId || currentUser?.id) === String(user.userId || user.id);
+    if (isSelf) {
+      toast({ variant: 'destructive', title: 'Action Denied', description: 'Cannot deactivate or delete the currently logged-in user.' });
+      return;
+    }
+    if (user.hasDependencies) {
+      handleOpenDeactivateModal(user);
+      return;
+    }
     setUserToDelete(user);
     setDeleteConfirmCode('');
     setDeleteModalOpen(true);
@@ -420,7 +473,23 @@ export default function UserManagementPage() {
       setUserToDelete(null);
       fetchUsers();
     } catch (e: any) {
-      toast({ variant: 'destructive', title: "Deletion Failed", description: e.message || "User cannot be deleted." });
+      const is409 = e.status === 409 || e.response?.status === 409 || String(e.message).includes('409') || String(e.message).includes('production/history');
+      if (is409) {
+        setDeleteModalOpen(false);
+        const userToPrompt = userToDelete;
+        setUserToDelete(null);
+        toast({
+          variant: 'destructive',
+          title: "Permanent Deletion Blocked",
+          description: "User cannot be permanently deleted because production/history records are associated with this user. Deactivate the user instead."
+        });
+        if (userToPrompt?.isActive || (userToPrompt as any)?.IsActive) {
+          setUserToDeactivate(userToPrompt);
+          setDeactivateModalOpen(true);
+        }
+      } else {
+        toast({ variant: 'destructive', title: "Deletion Failed", description: e.message || "User cannot be deleted." });
+      }
     } finally {
       setDeleting(false);
     }
@@ -780,19 +849,62 @@ export default function UserManagementPage() {
                               )}
                               {canManageUsers && (
                                 <Button size="sm" variant="ghost"
-                                  title={(u.isActive || (u as any).IsActive) ? "Deactivate" : "Activate"}
-                                  className={cn((u.isActive || (u as any).IsActive) ? "text-muted-foreground hover:text-red-500" : "text-green-500")}
+                                  disabled={String(currentUser?.userId || currentUser?.id) === String(u.userId || (u as any).id)}
+                                  title={
+                                    String(currentUser?.userId || currentUser?.id) === String(u.userId || (u as any).id)
+                                      ? "Cannot deactivate or delete the currently logged-in user."
+                                      : (u.isActive || (u as any).IsActive) ? "Deactivate" : "Activate"
+                                  }
+                                  className={cn(
+                                    String(currentUser?.userId || currentUser?.id) === String(u.userId || (u as any).id)
+                                      ? "opacity-40 cursor-not-allowed text-muted-foreground"
+                                      : (u.isActive || (u as any).IsActive) ? "text-muted-foreground hover:text-red-500" : "text-green-500"
+                                  )}
                                   onClick={() => handleToggleUserStatus(u)}>
                                   {(u.isActive || (u as any).IsActive) ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                                 </Button>
                               )}
                               {isAdmin && (
-                                <Button size="sm" variant="ghost"
-                                  title="Delete User Permanently"
-                                  className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                  onClick={() => handleOpenDeleteModal(u)}>
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                (() => {
+                                  const isSelf = String(currentUser?.userId || currentUser?.id) === String(u.userId || (u as any).id);
+                                  const isActiveUser = Boolean(u.isActive || (u as any).IsActive);
+
+                                  if (isSelf) {
+                                    return (
+                                      <Button size="sm" variant="ghost" disabled
+                                        title="Cannot deactivate or delete the currently logged-in user."
+                                        className="opacity-40 cursor-not-allowed text-muted-foreground">
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    );
+                                  }
+
+                                  // Active user with production/history records -> Show "Deactivate User" instead of permanent delete
+                                  if (isActiveUser && u.hasDependencies) {
+                                    return (
+                                      <Button size="sm" variant="ghost"
+                                        title="Deactivate User"
+                                        className="text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                                        onClick={() => handleOpenDeactivateModal(u)}>
+                                        <UserX className="w-4 h-4" />
+                                      </Button>
+                                    );
+                                  }
+
+                                  // Users with zero dependencies (permanent deletion available)
+                                  if (!u.hasDependencies) {
+                                    return (
+                                      <Button size="sm" variant="ghost"
+                                        title="Delete User Permanently"
+                                        className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                        onClick={() => handleOpenDeleteModal(u)}>
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    );
+                                  }
+
+                                  return null;
+                                })()
                               )}
                               {canManageUsers && (
                                 <Button size="sm" variant="ghost"
@@ -1209,6 +1321,37 @@ export default function UserManagementPage() {
                 onClick={handleConfirmDeleteUser}
               >
                 {deleting ? 'Deleting...' : 'Permanently Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ============================
+            DEACTIVATE USER MODAL
+        ============================ */}
+        <Dialog open={deactivateModalOpen} onOpenChange={setDeactivateModalOpen}>
+          <DialogContent className="bg-sidebar border-sidebar-border text-white shadow-2xl max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 font-headline text-amber-500">
+                <AlertTriangle className="w-5 h-5" /> Deactivate User?
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground text-xs pt-2 space-y-2">
+                <span className="block text-white font-medium">
+                  {userToDeactivate?.fullName || userToDeactivate?.name} ({userToDeactivate?.employeeCode})
+                </span>
+                <span className="block pt-1">
+                  This user has production/history records. Deactivating will prevent active access while preserving all production history.
+                </span>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="pt-4 border-t border-sidebar-border">
+              <Button variant="outline" onClick={() => setDeactivateModalOpen(false)}>Cancel</Button>
+              <Button
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                disabled={deactivating}
+                onClick={handleConfirmDeactivateUser}
+              >
+                {deactivating ? 'Deactivating...' : 'Deactivate User'}
               </Button>
             </DialogFooter>
           </DialogContent>
