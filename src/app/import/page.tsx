@@ -119,7 +119,27 @@ export default function BidSheetImportPage() {
 
     const startEditing = (row: ImportRow) => {
         setEditingRow(row.BatchRowID);
-        setEditData(row);
+        setEditData({ ...row });
+    };
+
+    const handleBidChange = (field: 'RotoBid' | 'PaintBid' | 'CompBid' | 'CGBid', val: number) => {
+        const next = { ...editData, [field]: val };
+        const roto = field === 'RotoBid' ? val : (Number(next.RotoBid) || 0);
+        const paint = field === 'PaintBid' ? val : (Number(next.PaintBid) || 0);
+        const comp = field === 'CompBid' ? val : (Number(next.CompBid) || 0);
+        const cg = field === 'CGBid' ? val : (Number(next.CGBid) || 0);
+        next.TotalBid = roto + paint + comp + cg;
+        setEditData(next);
+    };
+
+    const handleFrameChange = (field: 'HeadIn' | 'TailOut', val: number) => {
+        const next = { ...editData, [field]: val };
+        const h = field === 'HeadIn' ? val : next.HeadIn;
+        const t = field === 'TailOut' ? val : next.TailOut;
+        if (h !== undefined && t !== undefined && !isNaN(h) && !isNaN(t)) {
+            next.FrameRange = String(t - h + 1);
+        }
+        setEditData(next);
     };
 
     const saveEdit = async () => {
@@ -128,9 +148,13 @@ export default function BidSheetImportPage() {
             await importService.updateRow(editingRow, editData);
             setEditingRow(null);
             if (selectedBatch) {
-                loadRows(selectedBatch.ImportBatchID);
+                await loadRows(selectedBatch.ImportBatchID);
+                try {
+                    const summary = await importService.getBatchSummary(selectedBatch.ImportBatchID);
+                    setBatchSummary(summary);
+                } catch (e) {}
             }
-            toast({ title: 'Row updated' });
+            toast({ title: 'Shot and tasks synchronized successfully' });
         } catch (error: any) {
             toast({ title: 'Failed to update row', description: error.message, variant: 'destructive' });
         }
@@ -361,6 +385,7 @@ export default function BidSheetImportPage() {
                                                 <TableHead>TailOut</TableHead>
                                                 <TableHead>Frame Range</TableHead>
                                                 <TableHead>SOW</TableHead>
+                                                <TableHead>Notes</TableHead>
                                                 <TableHead>Vendor</TableHead>
                                                 <TableHead>Complexity</TableHead>
                                                 <TableHead>Roto</TableHead>
@@ -394,17 +419,18 @@ export default function BidSheetImportPage() {
                                                             <TableCell><Input value={editData.ShotName || ''} onChange={e => setEditData({...editData, ShotName: e.target.value})} className="w-28" /></TableCell>
                                                             <TableCell><Input value={editData.Batch || ''} onChange={e => setEditData({...editData, Batch: e.target.value})} className="w-20" /></TableCell>
                                                             <TableCell><Input value={editData.Department || ''} onChange={e => setEditData({...editData, Department: e.target.value})} className="w-20" /></TableCell>
-                                                            <TableCell><Input type="number" value={editData.HeadIn || 0} onChange={e => setEditData({...editData, HeadIn: parseInt(e.target.value)})} className="w-16" /></TableCell>
-                                                            <TableCell><Input type="number" value={editData.TailOut || 0} onChange={e => setEditData({...editData, TailOut: parseInt(e.target.value)})} className="w-16" /></TableCell>
+                                                            <TableCell><Input type="number" value={editData.HeadIn ?? 0} onChange={e => handleFrameChange('HeadIn', parseInt(e.target.value) || 0)} className="w-16" /></TableCell>
+                                                            <TableCell><Input type="number" value={editData.TailOut ?? 0} onChange={e => handleFrameChange('TailOut', parseInt(e.target.value) || 0)} className="w-16" /></TableCell>
                                                             <TableCell><Input value={editData.FrameRange || ''} onChange={e => setEditData({...editData, FrameRange: e.target.value})} className="w-16" /></TableCell>
                                                             <TableCell><Input value={editData.SOW || ''} onChange={e => setEditData({...editData, SOW: e.target.value})} className="w-28" /></TableCell>
+                                                            <TableCell><Input value={editData.Notes || ''} onChange={e => setEditData({...editData, Notes: e.target.value})} className="w-28" /></TableCell>
                                                             <TableCell><Input value={editData.Vendor || ''} onChange={e => setEditData({...editData, Vendor: e.target.value})} className="w-20" /></TableCell>
                                                             <TableCell><Input value={editData.Complexity || ''} onChange={e => setEditData({...editData, Complexity: e.target.value})} className="w-20" /></TableCell>
-                                                            <TableCell><Input type="number" step="0.1" value={editData.RotoBid || 0} onChange={e => setEditData({...editData, RotoBid: parseFloat(e.target.value)})} className="w-16" /></TableCell>
-                                                            <TableCell><Input type="number" step="0.1" value={editData.PaintBid || 0} onChange={e => setEditData({...editData, PaintBid: parseFloat(e.target.value)})} className="w-16" /></TableCell>
-                                                            <TableCell><Input type="number" step="0.1" value={editData.CompBid || 0} onChange={e => setEditData({...editData, CompBid: parseFloat(e.target.value)})} className="w-16" /></TableCell>
-                                                            <TableCell><Input type="number" step="0.1" value={editData.CGBid || 0} onChange={e => setEditData({...editData, CGBid: parseFloat(e.target.value)})} className="w-16" /></TableCell>
-                                                            <TableCell><Input type="number" step="0.1" value={editData.TotalBid || 0} onChange={e => setEditData({...editData, TotalBid: parseFloat(e.target.value)})} className="w-16" /></TableCell>
+                                                            <TableCell><Input type="number" step="0.1" value={editData.RotoBid ?? 0} onChange={e => handleBidChange('RotoBid', parseFloat(e.target.value) || 0)} className="w-16" /></TableCell>
+                                                            <TableCell><Input type="number" step="0.1" value={editData.PaintBid ?? 0} onChange={e => handleBidChange('PaintBid', parseFloat(e.target.value) || 0)} className="w-16" /></TableCell>
+                                                            <TableCell><Input type="number" step="0.1" value={editData.CompBid ?? 0} onChange={e => handleBidChange('CompBid', parseFloat(e.target.value) || 0)} className="w-16" /></TableCell>
+                                                            <TableCell><Input type="number" step="0.1" value={editData.CGBid ?? 0} onChange={e => handleBidChange('CGBid', parseFloat(e.target.value) || 0)} className="w-16" /></TableCell>
+                                                            <TableCell><Input type="number" step="0.1" value={editData.TotalBid ?? 0} onChange={e => setEditData({...editData, TotalBid: parseFloat(e.target.value) || 0})} className="w-16" /></TableCell>
                                                             <TableCell><Input value={editData.ETA || ''} onChange={e => setEditData({...editData, ETA: e.target.value})} className="w-24" /></TableCell>
                                                             <TableCell><Input value={editData.Status || ''} onChange={e => setEditData({...editData, Status: e.target.value})} className="w-20" /></TableCell>
                                                             <TableCell>
@@ -422,6 +448,7 @@ export default function BidSheetImportPage() {
                                                             <TableCell>{row.TailOut}</TableCell>
                                                             <TableCell>{row.FrameRange}</TableCell>
                                                             <TableCell className="max-w-[200px] truncate" title={row.SOW}>{row.SOW}</TableCell>
+                                                            <TableCell className="max-w-[200px] truncate" title={row.Notes}>{row.Notes || '-'}</TableCell>
                                                             <TableCell>{row.Vendor}</TableCell>
                                                             <TableCell>
                                                                 {row.Complexity ? (
@@ -453,7 +480,7 @@ export default function BidSheetImportPage() {
                                             ))}
                                             {filteredRows.length === 0 && (
                                                 <TableRow>
-                                                    <TableCell colSpan={21} className="text-center py-8 text-muted-foreground">
+                                                    <TableCell colSpan={22} className="text-center py-8 text-muted-foreground">
                                                         No rows match the current filter.
                                                     </TableCell>
                                                 </TableRow>

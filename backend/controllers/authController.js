@@ -23,6 +23,7 @@ function signAccessToken(user) {
       roleId: user.RoleId,
       roleName: user.RoleName,
       departmentId: user.HomeDepartmentId,
+      departmentName: user.DepartmentName,
       teamId: user.HomeTeamId,
     },
     JWT_SECRET,

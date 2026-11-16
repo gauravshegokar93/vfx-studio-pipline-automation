@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import useRouter from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +22,8 @@ import {
   Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { searchArtists } from '@/lib/artist-search';
+import { departmentTaskHref, getDepartmentStage } from '@/lib/task-navigation';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +39,15 @@ import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
 import { taskService, TaskItem, UserItem } from '@/services/taskService';
 import { dashboardService } from '@/services/dashboardService';
 
+// Current assignments must come from active rows, not the historical audit trail.
+const getCurrentAssignments = (task: TaskItem): any[] => {
+  try {
+    const parsed = typeof task.assignmentsJson === 'string' ? JSON.parse(task.assignmentsJson) : task.assignmentsJson;
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  return [];
+};
+
 const ArtistCell = ({ task, parsedAssignments, handleOpenReassignModal, handleOpenUnassignModal, handleOpenAssignModal, tgtBid }: any) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -47,17 +58,43 @@ const ArtistCell = ({ task, parsedAssignments, handleOpenReassignModal, handleOp
 
   if (parsedAssignments.length === 0) {
     if (task.assignedArtist) {
+      const singleAssign = {
+        assignmentId: task.assignmentId || task.anyAssignmentId,
+        artistName: task.assignedArtist,
+        userId: task.assignedArtistId,
+        targetHours: task.targetHours || (tgtBid * 8)
+      };
       return (
-        <div className="flex flex-col gap-1 bg-sidebar-accent/20 p-1.5 rounded-lg border border-sidebar-border/50">
-          <div className="flex items-center gap-1.5">
-            <UserCircle className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span className="font-bold text-[11px] truncate">{task.assignedArtist}</span>
-          </div>
-          <div className="flex items-center justify-between pl-5">
+        <div className="flex flex-col gap-1.5 bg-sidebar-accent/20 p-2 rounded-lg border border-sidebar-border/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <UserCircle className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="font-bold text-[11px] truncate max-w-[140px]" title={task.assignedArtist}>{task.assignedArtist}</span>
+            </div>
             <span className="text-muted-foreground text-[10px] font-mono">
               {formattedBid(tgtBid)} Bid
             </span>
           </div>
+          {singleAssign.assignmentId && (
+            <div className="flex items-center justify-end gap-1 mt-1 pt-1 border-t border-sidebar-border/30">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-5 px-1.5 text-[9px] uppercase tracking-wider text-blue-400 border-blue-500/20 hover:bg-blue-500/10 hover:text-blue-300"
+                onClick={(e) => handleOpenReassignModal(e, singleAssign, task)}
+              >
+                Reassign
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-5 px-1.5 text-[9px] uppercase tracking-wider text-muted-foreground border-sidebar-border hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20"
+                onClick={(e) => handleOpenUnassignModal(e, singleAssign, task)}
+              >
+                Unassign
+              </Button>
+            </div>
+          )}
         </div>
       );
     }
@@ -86,7 +123,8 @@ const ArtistCell = ({ task, parsedAssignments, handleOpenReassignModal, handleOp
     );
   }
 
-  const visibleArtists = expanded ? parsedAssignments : parsedAssignments.slice(0, 3);
+  const sortedArtists = searchArtists(parsedAssignments);
+  const visibleArtists = expanded ? sortedArtists : sortedArtists.slice(0, 3);
   const hiddenCount = parsedAssignments.length - 3;
 
   return (
@@ -189,6 +227,7 @@ const ArtistCell = ({ task, parsedAssignments, handleOpenReassignModal, handleOp
 };
 
 export default function DepartmentQueuePage() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [activeArtists, setActiveArtists] = useState<any[]>([]);
@@ -201,6 +240,20 @@ export default function DepartmentQueuePage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [selectedStatusId, setSelectedStatusId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const [artistSearch, setArtistSearch] = useState('');
+  const [assignmentArtistSearch, setAssignmentArtistSearch] = useState('');
+  const [reassignArtistSearch, setReassignArtistSearch] = useState('');
+  const visibleTasks = tasks.filter(task => {
+    if (!artistSearch.trim()) return true;
+    let assignments: any[] = [];
+    try {
+      const parsed = typeof task.assignmentsJson === 'string' ? JSON.parse(task.assignmentsJson) : task.assignmentsJson;
+      if (Array.isArray(parsed)) assignments = parsed;
+    } catch {}
+    return searchArtists([...assignments, { artistName: task.assignedArtist }], artistSearch).length > 0;
+  });
+  const visibleActiveArtists = searchArtists(activeArtists, assignmentArtistSearch);
 
   // Assignment Modal
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -226,6 +279,10 @@ export default function DepartmentQueuePage() {
   } else if (selectedTask?.assignedArtist) {
     modalAllocatedBid = modalTgtBid;
   }
+  // Logged work from removed artists still consumes bid; only unworked bid is released.
+  const activeActualHours = (selectedTask ? getCurrentAssignments(selectedTask) : [])
+    .reduce((sum, a) => sum + (Number(a.actualHours) || 0), 0);
+  modalAllocatedBid += Math.max(0, (selectedTask?.actualHours || 0) - activeActualHours) / 8;
   const newAssignmentsBid = Object.values(selectedArtistsData).reduce((sum, data) => sum + (Number(data.targetBid) || 0), 0);
   const modalRemainingBid = modalEstBid - modalAllocatedBid - newAssignmentsBid;
 
@@ -248,8 +305,20 @@ export default function DepartmentQueuePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   useEffect(() => {
     try {
+      setSelectedStage(getDepartmentStage(new URLSearchParams(window.location.search).get('stage')));
       const u = localStorage.getItem('user');
-      if (u) setCurrentUser(JSON.parse(u));
+      if (u) {
+        const userObj = JSON.parse(u);
+        setCurrentUser(userObj);
+        const role = userObj.roleName || userObj.role;
+        if (role === 'Team Lead' || role === 'Lead') {
+          const dept = (userObj.departmentName || userObj.department || '').toLowerCase();
+          if (dept === 'roto') setSelectedStage('1');
+          else if (dept === 'paint') setSelectedStage('2');
+          else if (dept === 'comp' || dept === 'compositing') setSelectedStage('3');
+          else if (dept === 'cg') setSelectedStage('4');
+        }
+      }
     } catch(e) {}
   }, []);
 
@@ -270,6 +339,7 @@ export default function DepartmentQueuePage() {
       if (dashData?.projectsList) {
         setProjects(dashData.projectsList);
       }
+      return queueData;
     } catch (err) {
       console.error('[DepartmentQueuePage] Load error:', err);
       toast({ title: 'Error', description: 'Failed to load department tasks or users.', variant: 'destructive' });
@@ -285,22 +355,18 @@ export default function DepartmentQueuePage() {
   const handleOpenAssignModal = async (e: React.MouseEvent, task: TaskItem) => {
     e.stopPropagation();
     setSelectedTask(task);
+    setAssignmentArtistSearch('');
     setSelectedArtistsData({});
     setActiveArtists([]);
     setCurrentAssignments([]);
     setAssignModalOpen(true);
     setLoadingArtists(true);
     try {
-      const [eligible, history] = await Promise.all([
-        taskService.getEligibleArtists(task.taskId),
-        taskService.getAssignmentHistory(task.taskId)
-      ]);
+      const eligible = await taskService.getEligibleArtists(task.taskId);
+      const assignments = getCurrentAssignments(task);
+      setCurrentAssignments(assignments);
 
-      const assigns = history.filter(h => h.assignmentType === 'Assign');
-      const uniqueAssigns = Array.from(new Map(assigns.map(a => [a.assignedToUserId, a])).values());
-      setCurrentAssignments(uniqueAssigns);
-
-      const assignedIds = new Set(uniqueAssigns.map(a => String(a.assignedToUserId)));
+      const assignedIds = new Set(assignments.map(a => String(a.userId)));
       const filteredEligible = eligible.filter(a => {
          const id = String(a.userId || a.id || (a as any).UserId);
          return !assignedIds.has(id);
@@ -396,13 +462,40 @@ export default function DepartmentQueuePage() {
   };
 
   const handleExecuteUnassign = async () => {
-    if (!selectedAssignment) return;
+    if (!selectedAssignment || unassigning) return;
     setUnassigning(true);
     try {
       await taskService.unassignTask(selectedAssignment.assignmentId);
+      // Reflect the successful removal immediately, then reconcile with the server.
+      if (assignModalOpen && selectedTask) {
+        const remaining = getCurrentAssignments(selectedTask).filter(a =>
+          String(a.assignmentId) !== String(selectedAssignment.assignmentId));
+        const updatedTask = {
+          ...selectedTask,
+          assignmentsJson: JSON.stringify(remaining),
+          assignedArtist: remaining[0]?.artistName || null,
+          assignedArtistId: remaining[0]?.userId || null,
+        };
+        setCurrentAssignments(remaining);
+        setSelectedTask(updatedTask);
+      }
       toast({ title: 'Artist Unassigned', description: 'The artist has been removed from this task.' });
       setUnassignModalOpen(false);
-      loadData();
+      const refreshedTasks = await loadData();
+      if (assignModalOpen && selectedTask) {
+        const refreshedTask = refreshedTasks?.find(t => t.taskId === selectedTask.taskId);
+        if (refreshedTask) {
+          setSelectedTask(refreshedTask);
+          setCurrentAssignments(getCurrentAssignments(refreshedTask));
+        }
+        const eligible = await taskService.getEligibleArtists(selectedTask.taskId);
+        const assignedIds = new Set(getCurrentAssignments(refreshedTask || {
+          ...selectedTask,
+          assignmentsJson: JSON.stringify(getCurrentAssignments(selectedTask).filter(a =>
+            String(a.assignmentId) !== String(selectedAssignment.assignmentId))),
+        }).map(a => String(a.userId)));
+        setActiveArtists(eligible.filter(a => !assignedIds.has(String(a.userId || a.id || a.UserId))));
+      }
     } catch (err: any) {
       if (err.message && err.message.includes('Safe historical unassignment is not supported')) {
         toast({ title: 'Limitation Reached', description: 'Historical work will be preserved. Safe historical unassignment without schema changes is not supported in the existing schema.', variant: 'destructive', duration: 8000 });
@@ -420,6 +513,7 @@ export default function DepartmentQueuePage() {
     setSelectedTask(task);
     setSelectedAssignment(assignment);
     setNewUserId('');
+    setReassignArtistSearch('');
     setReassignModalOpen(true);
   };
 
@@ -469,23 +563,40 @@ export default function DepartmentQueuePage() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Department / Stage Tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-              {[
-                { id: 'all', name: 'All Stages' },
-                { id: '1', name: 'Roto' },
-                { id: '2', name: 'Paint' },
-                { id: '3', name: 'Comp' },
-                { id: '4', name: 'CG' },
-              ].map(tab => (
-                <Button
-                  key={tab.id}
-                  variant={selectedStage === tab.id ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedStage(tab.id)}
-                  className={selectedStage === tab.id ? 'bg-crimson text-white font-bold' : 'border-sidebar-border text-muted-foreground'}
-                >
-                  {tab.name}
-                </Button>
-              ))}
+              {(() => {
+                const role = currentUser?.roleName || currentUser?.role;
+                const isLeadUser = role === 'Team Lead' || role === 'Lead';
+                const dept = (currentUser?.departmentName || currentUser?.department || '').toLowerCase();
+                let leadStage = 'all';
+                if (dept === 'roto') leadStage = '1';
+                else if (dept === 'paint') leadStage = '2';
+                else if (dept === 'comp' || dept === 'compositing') leadStage = '3';
+                else if (dept === 'cg') leadStage = '4';
+
+                const allTabs = [
+                  { id: 'all', name: 'All Stages' },
+                  { id: '1', name: 'Roto' },
+                  { id: '2', name: 'Paint' },
+                  { id: '3', name: 'Comp' },
+                  { id: '4', name: 'CG' },
+                ];
+
+                const tabsToRender = isLeadUser && leadStage !== 'all'
+                  ? allTabs.filter(t => t.id === leadStage)
+                  : allTabs;
+
+                return tabsToRender.map(tab => (
+                  <Button
+                    key={tab.id}
+                    variant={selectedStage === tab.id ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSelectedStage(tab.id)}
+                    className={selectedStage === tab.id ? 'bg-crimson text-white font-bold' : 'border-sidebar-border text-muted-foreground'}
+                  >
+                    {isLeadUser && leadStage !== 'all' ? `${tab.name} (Lead Queue)` : tab.name}
+                  </Button>
+                ));
+              })()}
             </div>
 
             <div className="h-6 w-px bg-sidebar-border hidden md:block" />
@@ -534,13 +645,23 @@ export default function DepartmentQueuePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <div className="relative min-w-[240px]">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              aria-label="Search artists by name"
+              className="bg-sidebar border-sidebar-border pl-9 text-xs text-white placeholder:text-muted-foreground"
+              placeholder="Search artists by name..."
+              value={artistSearch}
+              onChange={(e) => setArtistSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* Real Department Production Queue Table */}
         <Card className="bg-card border-none shadow-2xl overflow-hidden">
           <CardHeader className="bg-sidebar-accent/30 border-b border-sidebar-border flex flex-row items-center justify-between py-4">
             <CardTitle className="text-white text-base font-bold flex items-center gap-2 font-headline uppercase tracking-wider">
-              <LayoutList className="text-crimson w-5 h-5" /> Production Tasks ({tasks.length})
+              <LayoutList className="text-crimson w-5 h-5" /> Production Tasks ({visibleTasks.length})
             </CardTitle>
             <div className="text-xs text-muted-foreground">
               Click any row to open full Task Detail workbench.
@@ -564,20 +685,11 @@ export default function DepartmentQueuePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map((task, idx) => {
+                {visibleTasks.map((task, idx) => {
                   const estBid = task.estimatedBid !== undefined && task.estimatedBid !== null ? task.estimatedBid : (task.estimatedHours ? task.estimatedHours / 8 : 0);
                   const tgtBid = task.targetBid !== undefined && task.targetBid !== null ? task.targetBid : (task.targetHours ? task.targetHours / 8 : estBid);
                   const actBid = task.actualBid !== undefined && task.actualBid !== null ? task.actualBid : (task.actualHours ? task.actualHours / 8 : 0);
                   const remBid = task.remainingBid !== undefined && task.remainingBid !== null ? task.remainingBid : (tgtBid - actBid);
-
-                  const isCompleted = task.statusId === 4 || task.status === 'Completed';
-                  const isReview = task.statusId === 3 || task.status === 'Review';
-                  const isRework = task.statusId === 5 || task.status === 'Rework';
-                  const isInProgress = task.statusId === 2 || task.status === 'In Progress';
-                  const isAssigned = task.statusId === 1 || task.status === 'Assigned';
-                  const isUnassigned = !task.assignedArtistId && (task.status === 'Unassigned' || !task.statusId);
-
-                  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
 
                   let parsedAssignments: any[] = [];
                   if (task.assignmentsJson) {
@@ -593,6 +705,18 @@ export default function DepartmentQueuePage() {
                     }
                   }
 
+                  const hasAnyArtists = parsedAssignments.length > 0 || !!task.assignedArtist || !!task.assignedArtistId;
+
+                  const isCompleted = task.statusId === 4 || task.status === 'Completed';
+                  const isReview = task.statusId === 3 || task.status === 'Review';
+                  const isRework = task.statusId === 5 || task.status === 'Rework';
+                  const isInProgress = hasAnyArtists && (task.statusId === 2 || task.status === 'In Progress');
+                  const isAssigned = hasAnyArtists && (task.statusId === 1 || task.status === 'Assigned');
+                  const isUnassigned = !hasAnyArtists || task.status === 'Unassigned' || !task.statusId;
+                  const displayStatus = !hasAnyArtists ? 'Unassigned' : (task.status || 'Unassigned');
+
+                  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
+
                   let allocatedBid = 0;
                   if (parsedAssignments.length > 0) {
                     allocatedBid = parsedAssignments.reduce((sum: number, a: any) => sum + ((a.targetHours || 0) / 8), 0);
@@ -601,13 +725,12 @@ export default function DepartmentQueuePage() {
                   }
 
                   const actionRemainingBid = estBid - allocatedBid;
-                  const hasAnyArtists = parsedAssignments.length > 0 || !!task.assignedArtistId;
 
                   return (
                     <TableRow
                       key={`task-${task.taskId || task.id || idx}`}
                       className="border-sidebar-border hover:bg-sidebar-accent/30 h-16 cursor-pointer transition-colors"
-                      onClick={() => window.location.href = `/tasks/${task.taskId || task.id}`}
+                      onClick={() => router.push(departmentTaskHref(task.taskId || task.id, selectedStage))}
                     >
                       <TableCell className="pl-6 font-mono">
                         <p className="font-bold text-white text-sm tracking-tight">{task.taskCode}</p>
@@ -645,7 +768,7 @@ export default function DepartmentQueuePage() {
                           isInProgress ? "bg-blue-500/20 text-blue-400" :
                           isAssigned ? "bg-green-500/20 text-green-400" : "bg-sidebar-accent text-muted-foreground"
                         )}>
-                          {task.status || 'Unassigned'}
+                          {displayStatus}
                         </Badge>
                       </TableCell>
 
@@ -695,7 +818,7 @@ export default function DepartmentQueuePage() {
                               </Badge>
                             )}
                             <Button size="sm" variant="ghost" className="text-xs text-muted-foreground hover:text-white gap-1" asChild>
-                              <Link href={`/tasks/${task.taskId}`}>
+                              <Link href={departmentTaskHref(task.taskId || task.id, selectedStage)}>
                                 View <ExternalLink className="w-3 h-3" />
                               </Link>
                             </Button>
@@ -706,7 +829,7 @@ export default function DepartmentQueuePage() {
                   );
                 })}
 
-                {tasks.length === 0 && !loading && (
+                {visibleTasks.length === 0 && !loading && (
                   <TableRow>
                     <TableCell colSpan={11} className="text-center py-20 text-muted-foreground">
                       <CheckCircle className="w-10 h-10 mx-auto mb-3 text-green-500/30" />
@@ -751,25 +874,42 @@ export default function DepartmentQueuePage() {
                 </div>
               </div>
 
+              <Input
+                aria-label="Search assignment artists by name"
+                className="bg-sidebar-accent border-sidebar-border text-white text-sm"
+                placeholder="Search artists by name..."
+                value={assignmentArtistSearch}
+                onChange={(e) => setAssignmentArtistSearch(e.target.value)}
+              />
+
               {/* Current Assignments */}
               {currentAssignments.length > 0 && (
                 <div className="space-y-3 mb-6">
                   <Label className="text-xs uppercase font-bold text-muted-foreground tracking-widest">Current Assignments</Label>
                   <div className="space-y-2">
-                    {currentAssignments.map((assign, idx) => (
-                      <div key={idx} className="p-3 rounded-xl border border-sidebar-border bg-sidebar-accent/20 flex items-center justify-between">
+                    {searchArtists(currentAssignments, assignmentArtistSearch).map((assign, idx) => (
+                      <div key={assign.assignmentId} className="p-3 rounded-xl border border-sidebar-border bg-sidebar-accent/20 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs bg-sidebar text-muted-foreground">
-                            {assign.assignedArtistName?.charAt(0) || 'U'}
+                            {assign.artistName?.charAt(0) || 'U'}
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-white">{assign.assignedArtistName}</p>
+                            <p className="text-sm font-bold text-white">{assign.artistName}</p>
                             <p className="text-[10px] text-muted-foreground">{assign.status || 'Assigned'}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs font-mono font-bold text-yellow-400">{formattedBid(assign.estimatedHours ? assign.estimatedHours / 8 : 0)}</p>
+                          <p className="text-xs font-mono font-bold text-yellow-400">{formattedBid((assign.targetHours || 0) / 8)}</p>
                           <p className="text-[10px] text-muted-foreground uppercase">Assigned</p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 mt-2 text-[10px] uppercase tracking-wider text-muted-foreground border-sidebar-border hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20"
+                            disabled={unassigning || assigning}
+                            onClick={(e) => selectedTask && handleOpenUnassignModal(e, assign, selectedTask)}
+                          >
+                            Remove
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -782,13 +922,13 @@ export default function DepartmentQueuePage() {
                 <Label className="text-xs uppercase font-bold text-muted-foreground tracking-widest">Add Artists</Label>
                 {loadingArtists ? (
                   <div className="text-center py-4 text-muted-foreground text-xs">Loading eligible artists...</div>
-                ) : activeArtists.length === 0 ? (
+                ) : visibleActiveArtists.length === 0 ? (
                   <div className="text-center py-4 text-muted-foreground text-xs font-bold border border-sidebar-border rounded-xl bg-sidebar-accent/20">
-                    No eligible active artists are available for this pipeline stage.
+                    {activeArtists.length === 0 ? 'No eligible active artists are available for this pipeline stage.' : 'No artists match your search.'}
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                    {activeArtists.map((artist, idx) => {
+                    {visibleActiveArtists.map((artist, idx) => {
                       const artistKey = String(artist.userId || artist.id || (artist as any).UserId || `artist-${idx}`);
                       const isSelected = !!selectedArtistsData[artistKey];
                       const artistBid = isSelected ? selectedArtistsData[artistKey].targetBid : 0;
@@ -1178,13 +1318,20 @@ export default function DepartmentQueuePage() {
                 {/* New Artist Selection */}
                 <div className="space-y-2">
                   <Label className="text-xs uppercase font-bold text-muted-foreground tracking-widest">Select New Artist</Label>
+                  <Input
+                    aria-label="Search new artist by name"
+                    className="bg-sidebar-accent border-sidebar-border text-white text-sm"
+                    placeholder="Search artists by name..."
+                    value={reassignArtistSearch}
+                    onChange={(e) => setReassignArtistSearch(e.target.value)}
+                  />
                   <select
                     className="w-full bg-sidebar border border-sidebar-border text-white text-sm p-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none"
                     value={newUserId}
                     onChange={(e) => setNewUserId(e.target.value)}
                   >
                     <option value="">-- Select an artist --</option>
-                    {users
+                    {searchArtists(users, reassignArtistSearch)
                       .filter(u => u.roleName === 'Artist' || u.roleName === 'QC Artist')
                       .filter(u => String(u.userId) !== String(selectedAssignment?.userId))
                       .map((u) => (

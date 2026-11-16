@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
+import { taskNavigationContext } from '@/lib/task-navigation';
 import { useAuth } from '@/context/AuthContext';
 import { AppSidebar } from '@/components/layout/sidebar';
 import { 
@@ -83,6 +84,7 @@ function formatDurationDisplay(hours: number): string {
 
 export default function TaskDetailPage() {
   const { id } = useParams();
+  const navigationContext = taskNavigationContext(useSearchParams());
   const { toast } = useToast();
   const { role: authRole, user: authUser } = useAuth();
 
@@ -301,10 +303,10 @@ export default function TaskDetailPage() {
   if (!task) {
     return (
       <div className="flex h-screen bg-background overflow-hidden">
-        <AppSidebar />
+        <AppSidebar activePath={navigationContext.activePath} />
         <main className="flex-1 p-8">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href="/tasks"><ArrowLeft className="w-4 h-4 mr-2" /> Back to Workbench</Link>
+            <Link href={navigationContext.workbenchHref}><ArrowLeft className="w-4 h-4 mr-2" /> Back to Workbench</Link>
           </Button>
           <div className="p-8 text-center text-muted-foreground">Task not found</div>
         </main>
@@ -337,11 +339,11 @@ export default function TaskDetailPage() {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      <AppSidebar />
+      <AppSidebar activePath={navigationContext.activePath} />
       <main className="flex-1 overflow-y-auto">
         <div className="p-8 space-y-8 animate-fade-in-up-sm">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href="/tasks"><ArrowLeft className="w-4 h-4 mr-2" /> Back to Workbench</Link>
+            <Link href={navigationContext.workbenchHref}><ArrowLeft className="w-4 h-4 mr-2" /> Back to Workbench</Link>
           </Button>
 
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

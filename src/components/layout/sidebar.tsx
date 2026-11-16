@@ -38,7 +38,7 @@ interface NavSection {
   items: NavItem[];
 }
 
-export function AppSidebar() {
+export function AppSidebar({ activePath }: { activePath?: string } = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser } = useLuminaStore();
@@ -141,7 +141,8 @@ export function AppSidebar() {
                 {section.title}
               </div>
               {visibleItems.map((item) => {
-                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname?.startsWith(item.href + '/'));
+                const navigationPath = activePath || pathname;
+                const isActive = navigationPath === item.href || (item.href !== '/dashboard' && navigationPath?.startsWith(item.href + '/'));
                 return (
                   <Link key={item.href + item.label} href={item.href}>
                     <span

@@ -1,0 +1,1 @@
+const { sql, config } = require('./config/db'); async function run() { await sql.connect(config); const res = await sql.query("SELECT ta.AssignmentID, ta.UserID, u.FullName, ta.TargetHours FROM TaskAssignment ta JOIN UserMaster u ON ta.UserID = u.UserId WHERE ta.TaskID = 370 AND u.FullName LIKE '%Ramraja%'"); console.log(JSON.stringify(res.recordset)); process.exit(0); } run();

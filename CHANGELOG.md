@@ -24,6 +24,14 @@ Version history and roadmap for SM rolling FX / Lumina VFX Hub.
 - SQL Schema: 100% complete with Clients, Episodes, Converted columns
 
 ### Fixed
+- Fixed React duplicate key error (10480, 10481) on Production Head Dashboard (overdueTasks.map() in production-head-view.tsx). Aggregated TaskAssignment joins in reportsService.js with STRING_AGG(u.FullName, ', ') and SUM(ta.TargetHours) to ensure 1:1 task-level uniqueness and eliminate console warnings.
+- Fixed Production Head Dashboard All Projects Total Estimated Bid double-counting caused by unaggregated TaskAssignment joins on multi-artist tasks. Pre-aggregated task assignments so Total Estimated Bid (211.50 Bid across 64 tasks) exactly equals the aggregate of individual project bids (FMK 87.00 + YETI 107.00 + ONE PIECE 17.50).
+- Updated Production Head Dashboard KPI card label from 'TARGET BID' to 'TOTAL ASSIGNED BID'.
+- Fixed Department Queue status inconsistency where tasks with no active artist displayed as 'Assigned'. Synchronized backend API and frontend badge to guarantee 'Unassigned' status when 0 active assignments exist.
+- Fixed Artist Assignment, Unassignment, and Reassignment in Department Queue.
+- Enabled safe unassignment restoring unallocated bid to available queue pool while preserving TimeLog work records and logging audit trail to TaskAssignmentHistory.
+- Enforced Lead department permissions on backend assignment routes (/api/assignments, /api/tasks/department-queue) ensuring Leads manage tasks and artists only within their own department without granting Super Admin privileges.
+- Fixed Bid Sheet row update synchronization with Department Queue, ShotMaster, and TaskMaster.
 - Database schema duplication in `docs/database-schema.sql`
 - Import controller stub replaced with `simpleImportController`
 

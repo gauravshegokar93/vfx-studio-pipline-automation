@@ -194,7 +194,7 @@ export default function ProductionHeadDashboard() {
                   <Clock className="w-5 h-5 text-yellow-400" />
                 </div>
                 <h3 className="text-3xl font-headline text-white">{formattedBid(data.kpi.totalEstimatedBid)}</h3>
-                <p className="text-[10px] text-muted-foreground mt-2 uppercase font-semibold">Target Bid: {formattedBid(data.kpi.totalTargetBid)}</p>
+                <p className="text-[10px] text-muted-foreground mt-2 uppercase font-semibold">Total Assigned Bid: {formattedBid(data.kpi.totalTargetBid)}</p>
               </Card>
 
               <Card className="bg-card border-none p-6 shadow-xl">

@@ -1,3 +1,41 @@
+// Helper: Determine Lead department and mapped workflow stage
+async function getLeadDepartment(pool, reqUser) {
+  if (!reqUser) return null;
+  const isLead = reqUser.roleName === 'Team Lead' || reqUser.roleName === 'Lead';
+  if (!isLead) return null;
+
+  let deptName = reqUser.departmentName;
+  let deptId = reqUser.departmentId;
+
+  if ((!deptName || !deptId) && reqUser.userId) {
+    try {
+      const res = await pool.request()
+        .input('UserId', sql.BigInt, reqUser.userId)
+        .query(`
+          SELECT dm.DepartmentId, dm.DepartmentName
+          FROM UserMaster um
+          LEFT JOIN DepartmentMaster dm ON um.HomeDepartmentId = dm.DepartmentId
+          WHERE um.UserId = @UserId
+        `);
+      if (res.recordset.length > 0) {
+        deptId = res.recordset[0].DepartmentId;
+        deptName = res.recordset[0].DepartmentName;
+      }
+    } catch (e) {
+      console.error('[getLeadDepartment] Error fetching dept:', e);
+    }
+  }
+
+  let stageId = null;
+  const cleanName = (deptName || '').trim().toLowerCase();
+  if (cleanName === 'roto') stageId = 1;
+  else if (cleanName === 'paint') stageId = 2;
+  else if (cleanName === 'comp' || cleanName === 'compositing') stageId = 3;
+  else if (cleanName === 'cg') stageId = 4;
+
+  return { deptId, deptName, stageId };
+}
+
 const express = require('express');
 const router = express.Router();
 
@@ -98,8 +136,14 @@ async function listTasks(req, res) {
         t.DueDate AS dueDate,
         prm.PriorityName AS priority,
         prm.PriorityId AS priorityId,
-        ISNULL(st.StatusName, 'Unassigned') AS status,
-        t.StatusID AS statusId,
+        CASE
+          WHEN ta_agg.anyUserId IS NULL THEN 'Unassigned'
+          ELSE ISNULL(st.StatusName, 'Assigned')
+        END AS status,
+        CASE
+          WHEN ta_agg.anyUserId IS NULL THEN NULL
+          ELSE t.StatusID
+        END AS statusId,
         ta_agg.anyUserId AS assignedArtistId,
         ta_agg.anyArtistName AS assignedArtist,
         ta_agg.lastAssignedDate AS assignedDate,
@@ -146,6 +190,7 @@ async function listTasks(req, res) {
                SUM(ta.TargetHours) as sumTargetHours,
                MAX(ta.AssignedDate) as lastAssignedDate,
                MAX(ta.UserID) as anyUserId,
+               MAX(ta.AssignmentID) as anyAssignmentId,
                (SELECT TOP 1 u.FullName FROM TaskAssignment ta2 JOIN UserMaster u ON ta2.UserID = u.UserId WHERE ta2.TaskID = ta.TaskID ORDER BY ta2.AssignmentID DESC) as anyArtistName
         FROM TaskAssignment ta
         GROUP BY ta.TaskID
@@ -182,7 +227,12 @@ async function getDepartmentQueue(req, res) {
 
     const where = ['t.IsActive = 1', '(t.IsDeleted = 0 OR t.IsDeleted IS NULL)'];
 
-    if (stageId && stageId.toLowerCase() !== 'all') {
+    // Verify Lead Permissions - restrict to own department stage
+    const leadDept = await getLeadDepartment(pool, req.user);
+    if (leadDept && leadDept.stageId) {
+      request.input('LeadStageId', sql.BigInt, leadDept.stageId);
+      where.push('t.WorkflowStageID = @LeadStageId');
+    } else if (stageId && stageId.toLowerCase() !== 'all') {
       const parsedStageId = parseInt(stageId, 10);
       if (isNaN(parsedStageId)) {
         return res.status(400).json({ success: false, message: 'Invalid stageId. Must be a bigint number or "all".' });
@@ -250,10 +300,17 @@ async function getDepartmentQueue(req, res) {
         ROUND((ISNULL(ta_agg.sumTargetHours, t.EstimatedHours) - ISNULL(tl.actualHours, 0)) / 8.0, 2) AS remainingBid,
         t.DueDate AS dueDate,
         ISNULL(prm.PriorityName, 'Medium') AS priority,
-        ISNULL(st.StatusName, 'Unassigned') AS status,
-        t.StatusID AS statusId,
+        CASE
+          WHEN ta_agg.anyUserId IS NULL THEN 'Unassigned'
+          ELSE ISNULL(st.StatusName, 'Assigned')
+        END AS status,
+        CASE
+          WHEN ta_agg.anyUserId IS NULL THEN NULL
+          ELSE t.StatusID
+        END AS statusId,
         ta_agg.anyArtistName AS assignedArtist,
         ta_agg.anyUserId AS assignedArtistId,
+        ta_agg.anyAssignmentId AS assignmentId,
         ta_agg.assignmentsJson AS assignmentsJson,
           (
             SELECT TOP 1 ibr.Complexity
@@ -291,6 +348,7 @@ async function getDepartmentQueue(req, res) {
                SUM(ta.TargetHours) as sumTargetHours,
                MAX(ta.AssignedDate) as lastAssignedDate,
                MAX(ta.UserID) as anyUserId,
+               MAX(ta.AssignmentID) as anyAssignmentId,
                (SELECT TOP 1 u.FullName FROM TaskAssignment ta2 JOIN UserMaster u ON ta2.UserID = u.UserId WHERE ta2.TaskID = ta.TaskID ORDER BY ta2.AssignmentID DESC) as anyArtistName
         FROM TaskAssignment ta
         GROUP BY ta.TaskID
@@ -375,8 +433,14 @@ async function getArtistTasks(req, res) {
         ROUND((CASE WHEN ISNULL(ta.TargetHours, 0) > ISNULL(tl.actualHours, 0) THEN ISNULL(ta.TargetHours, 0) - ISNULL(tl.actualHours, 0) ELSE 0 END) / 8.0, 2) AS remainingBid,
         (CASE WHEN ISNULL(ta.TargetHours, 0) > ISNULL(tl.actualHours, 0) THEN ISNULL(ta.TargetHours, 0) - ISNULL(tl.actualHours, 0) ELSE 0 END) AS remainingHours,
         t.DueDate AS dueDate,
-        ISNULL(st.StatusName, 'Assigned') AS status,
-        ta.StatusID AS statusId,
+        CASE
+          WHEN ta.UserID IS NULL THEN 'Unassigned'
+          ELSE ISNULL(st.StatusName, 'Assigned')
+        END AS status,
+        CASE
+          WHEN ta.UserID IS NULL THEN NULL
+          ELSE ta.StatusID
+        END AS statusId,
         ta.AssignedDate AS assignedDate,
         ta.Remarks AS remarks,
         (
@@ -509,6 +573,7 @@ async function getTaskById(req, res) {
                SUM(ta.TargetHours) as sumTargetHours,
                MAX(ta.AssignedDate) as lastAssignedDate,
                MAX(ta.UserID) as anyUserId,
+               MAX(ta.AssignmentID) as anyAssignmentId,
                (SELECT TOP 1 u.FullName FROM TaskAssignment ta2 JOIN UserMaster u ON ta2.UserID = u.UserId WHERE ta2.TaskID = ta.TaskID ORDER BY ta2.AssignmentID DESC) as anyArtistName
         FROM TaskAssignment ta
         GROUP BY ta.TaskID
@@ -814,6 +879,7 @@ async function reopenForClientRevision(req, res) {
 
 router.get('/', secured(listTasks));
 router.post('/', securedAny(createTask));
+router.get('/department-queue', secured(getDepartmentQueue));
 router.get('/department-queue/:stageId', secured(getDepartmentQueue));
 router.get('/artist/:artistId', secured(getArtistTasks));
 router.post('/:id/submit-review', securedAny(submitTaskForReview));

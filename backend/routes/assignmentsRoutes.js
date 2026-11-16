@@ -7,12 +7,50 @@ const { logTaskHistory, createNotification } = require('../utils/historyHelper')
 
 // secured: roles that can WRITE assignments
 function secured(handler) {
-  return authMiddleware(['Super Admin', 'Production Head', 'Project Manager', 'Team Lead'], handler);
+  return authMiddleware(['Super Admin', 'Production Head', 'Project Manager', 'Team Lead', 'Lead'], handler);
 }
 
 // securedReadOnly: roles that can READ assignment data
 function securedReadOnly(handler) {
-  return authMiddleware(['Super Admin', 'Production Head', 'Project Manager', 'Team Lead', 'Artist', 'QC Artist'], handler);
+  return authMiddleware(['Super Admin', 'Production Head', 'Project Manager', 'Team Lead', 'Lead', 'Artist', 'QC Artist'], handler);
+}
+
+// Helper: Determine Lead department and mapped workflow stage
+async function getLeadDepartment(pool, reqUser) {
+  if (!reqUser) return null;
+  const isLead = reqUser.roleName === 'Team Lead' || reqUser.roleName === 'Lead';
+  if (!isLead) return null;
+
+  let deptName = reqUser.departmentName;
+  let deptId = reqUser.departmentId;
+
+  if ((!deptName || !deptId) && reqUser.userId) {
+    try {
+      const res = await pool.request()
+        .input('UserId', sql.BigInt, reqUser.userId)
+        .query(`
+          SELECT dm.DepartmentId, dm.DepartmentName
+          FROM UserMaster um
+          LEFT JOIN DepartmentMaster dm ON um.HomeDepartmentId = dm.DepartmentId
+          WHERE um.UserId = @UserId
+        `);
+      if (res.recordset.length > 0) {
+        deptId = res.recordset[0].DepartmentId;
+        deptName = res.recordset[0].DepartmentName;
+      }
+    } catch (e) {
+      console.error('[getLeadDepartment] Error fetching dept:', e);
+    }
+  }
+
+  let stageId = null;
+  const cleanName = (deptName || '').trim().toLowerCase();
+  if (cleanName === 'roto') stageId = 1;
+  else if (cleanName === 'paint') stageId = 2;
+  else if (cleanName === 'comp' || cleanName === 'compositing') stageId = 3;
+  else if (cleanName === 'cg') stageId = 4;
+
+  return { deptId, deptName, stageId };
 }
 
 // Helper: Department compatibility check using REAL DepartmentMaster names
@@ -144,6 +182,19 @@ async function assignTask(req, res) {
       return res.status(400).json({ success: false, message: deptCheck.message });
     }
 
+    // F1: Verify Lead Permissions - Leads can only assign within their department
+    const leadDept = await getLeadDepartment(pool, req.user);
+    if (leadDept) {
+      if (leadDept.stageId && Number(task.WorkflowStageID) !== Number(leadDept.stageId)) {
+        await transaction.rollback();
+        return res.status(403).json({ success: false, message: `Forbidden: Leads can only assign tasks within their department (${leadDept.deptName})` });
+      }
+      if (leadDept.deptId && Number(artist.HomeDepartmentId) !== Number(leadDept.deptId)) {
+        await transaction.rollback();
+        return res.status(403).json({ success: false, message: `Forbidden: Leads can only assign artists within their department (${leadDept.deptName})` });
+      }
+    }
+
     // F2: Verify Allocation to Prevent Over-Allocation
     const allocReq = new sql.Request(transaction);
     allocReq.input('TaskId', sql.BigInt, parsedTaskId);
@@ -155,7 +206,7 @@ async function assignTask(req, res) {
     const existingTargetHours = allocResult.recordset[0].totalTargetHours;
 
     // Check if new assignment exceeds the estimated task hours
-    if ((existingTargetHours + parsedTargetHours) > (task.EstimatedHours || 0)) {
+    if ((existingTargetHours + parsedTargetHours) > ((task.EstimatedHours || 0) + 0.001)) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Requested allocation exceeds the remaining task bid' });
     }
@@ -208,6 +259,21 @@ async function assignTask(req, res) {
       INSERT INTO TaskAssignment (TaskID, UserID, AssignedBy, AssignedDate, TargetHours, StatusID, Remarks)
       VALUES (@TaskId, @UserId, @AssignedBy, SYSDATETIME(), @TargetHours, @StatusID, @Remarks)
     `);
+
+    // Ensure TaskMaster Status is set to Assigned if unassigned
+    if (!task.StatusID) {
+      const updateTaskStatusReq = new sql.Request(transaction);
+      updateTaskStatusReq.input('TaskId', sql.BigInt, parsedTaskId);
+      updateTaskStatusReq.input('StatusID', sql.BigInt, assignedStatusId);
+      updateTaskStatusReq.input('ModifiedBy', sql.BigInt, assignedBy);
+      await updateTaskStatusReq.query(`
+        UPDATE TaskMaster
+        SET StatusID = @StatusID,
+            ModifiedBy = @ModifiedBy,
+            ModifiedDate = GETDATE()
+        WHERE TaskID = @TaskId
+      `);
+    }
 
     // 9. Insert into TaskAssignmentHistory
     const insertHistReq = new sql.Request(transaction);
@@ -554,6 +620,18 @@ async function getEligibleArtists(req, res) {
     }
     const task = taskResult.recordset[0];
 
+    // Verify Lead Permissions
+    const leadDept = await getLeadDepartment(pool, req.user);
+    if (leadDept && leadDept.stageId) {
+      const taskStageCheck = await pool.request()
+        .input('TaskId', sql.BigInt, parsedTaskId)
+        .query('SELECT WorkflowStageID FROM TaskMaster WHERE TaskID = @TaskId');
+      const taskStageId = taskStageCheck.recordset[0]?.WorkflowStageID;
+      if (taskStageId && Number(taskStageId) !== Number(leadDept.stageId)) {
+        return res.status(403).json({ success: false, message: `Forbidden: Leads can only view eligible artists for tasks in their department (${leadDept.deptName})` });
+      }
+    }
+
     const usersResult = await pool.request().query(`
       SELECT
         u.UserId, u.FullName, r.RoleName,
@@ -622,9 +700,12 @@ async function unassignTask(req, res) {
     const checkReq = new sql.Request(transaction);
     checkReq.input('AssignmentID', sql.BigInt, parsedAssignmentId);
     const assignResult = await checkReq.query(`
-      SELECT AssignmentID, TaskID, UserID, TargetHours, StatusID
-      FROM TaskAssignment
-      WHERE AssignmentID = @AssignmentID
+      SELECT ta.AssignmentID, ta.TaskID, ta.UserID, ta.TargetHours, ta.StatusID,
+             u.FullName, tm.EstimatedHours, tm.PriorityID, tm.DueDate, tm.WorkflowStageID
+      FROM TaskAssignment ta
+      JOIN UserMaster u ON ta.UserID = u.UserId
+      JOIN TaskMaster tm ON ta.TaskID = tm.TaskID
+      WHERE ta.AssignmentID = @AssignmentID
     `);
 
     if (assignResult.recordset.length === 0) {
@@ -633,45 +714,40 @@ async function unassignTask(req, res) {
     }
 
     const assignment = assignResult.recordset[0];
+    const taskId = assignment.TaskID;
+    const userId = assignment.UserID;
 
-    // 2. Check for production history (TimeLog)
-    const historyReq = new sql.Request(transaction);
-    historyReq.input('TaskID', sql.BigInt, assignment.TaskID);
-    historyReq.input('UserID', sql.BigInt, assignment.UserID);
-    const historyResult = await historyReq.query(`
-      SELECT TOP 1 TimeLogID FROM TimeLog WHERE TaskID = @TaskID AND UserID = @UserID
-    `);
-
-    if (historyResult.recordset.length > 0) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Safe historical unassignment is not supported without schema changes. The artist has production history on this task.',
-        limitation: true
-      });
+    // Verify Lead Permissions
+    const leadDept = await getLeadDepartment(pool, req.user);
+    if (leadDept && leadDept.stageId) {
+      if (Number(assignment.WorkflowStageID) !== Number(leadDept.stageId)) {
+        await transaction.rollback();
+        return res.status(403).json({ success: false, message: `Forbidden: Leads can only remove assignments within their department (${leadDept.deptName})` });
+      }
     }
 
-    // 3. Get Task info for history logging
-    const taskReq = new sql.Request(transaction);
-    taskReq.input('TaskID', sql.BigInt, assignment.TaskID);
-    const taskResult = await taskReq.query(`
-      SELECT TaskID, DueDate, EstimatedHours, PriorityID, StatusID
-      FROM TaskMaster WHERE TaskID = @TaskID
+    // 2. Check actual hours worked from TimeLog (preserves work logs)
+    const actualReq = new sql.Request(transaction);
+    actualReq.input('TaskID', sql.BigInt, taskId);
+    actualReq.input('UserID', sql.BigInt, userId);
+    const actualResult = await actualReq.query(`
+      SELECT ISNULL(SUM(HoursWorked), 0) AS ActualHours FROM TimeLog WHERE TaskID = @TaskID AND UserID = @UserID
     `);
+    const actualHours = Number(actualResult.recordset[0]?.ActualHours) || 0;
+    const targetHours = Number(assignment.TargetHours) || 0;
+    const releasedHours = Math.max(0, targetHours - actualHours);
 
-    const task = taskResult.recordset[0] || {};
-
-    // 4. Log unassignment to TaskAssignmentHistory
+    // 3. Log unassignment to TaskAssignmentHistory - ALWAYS preserves audit history!
     const insertHistReq = new sql.Request(transaction);
-    insertHistReq.input('TaskId', sql.BigInt, assignment.TaskID);
-    insertHistReq.input('AssignedToUserID', sql.BigInt, assignment.UserID);
+    insertHistReq.input('TaskId', sql.BigInt, taskId);
+    insertHistReq.input('AssignedToUserID', sql.BigInt, userId);
     insertHistReq.input('AssignedByUserID', sql.BigInt, assignedBy);
     insertHistReq.input('AssignmentType', sql.NVarChar(50), 'Unassigned');
-    insertHistReq.input('DueDate', sql.DateTime, task.DueDate || null);
-    insertHistReq.input('EstimatedHours', sql.Decimal(18, 2), task.EstimatedHours || null);
-    insertHistReq.input('PriorityID', sql.BigInt, task.PriorityID || null);
+    insertHistReq.input('DueDate', sql.DateTime, assignment.DueDate || null);
+    insertHistReq.input('EstimatedHours', sql.Decimal(18, 2), assignment.EstimatedHours || null);
+    insertHistReq.input('PriorityID', sql.BigInt, assignment.PriorityID || null);
     insertHistReq.input('StatusID', sql.BigInt, assignment.StatusID);
-    insertHistReq.input('Remarks', sql.NVarChar(1000), 'Artist unassigned');
+    insertHistReq.input('Remarks', sql.NVarChar(1000), `Artist ${assignment.FullName} unassigned. Released: ${(releasedHours/8).toFixed(2)} Bid (${releasedHours.toFixed(2)}h). Actual work logged: ${(actualHours/8).toFixed(2)} Bid (${actualHours.toFixed(2)}h) preserved.`);
 
     await insertHistReq.query(`
       INSERT INTO TaskAssignmentHistory (
@@ -684,14 +760,50 @@ async function unassignTask(req, res) {
       )
     `);
 
-    // 5. Delete the TaskAssignment row
+    // 4. Remove active assignment row from TaskAssignment
     const deleteReq = new sql.Request(transaction);
     deleteReq.input('AssignmentID', sql.BigInt, parsedAssignmentId);
     await deleteReq.query(`
       DELETE FROM TaskAssignment WHERE AssignmentID = @AssignmentID
     `);
 
-    // (Optional) If it was the last assignment, we could update the TaskMaster status, but the instructions say "DO NOT modify other artists" and "Task remains". We leave TaskMaster Status as is for now.
+    // 5. Update TaskMaster Status based on remaining active assignments
+    const remainingReq = new sql.Request(transaction);
+    remainingReq.input('TaskId', sql.BigInt, taskId);
+    const remainingRes = await remainingReq.query(`
+      SELECT StatusID FROM TaskAssignment WHERE TaskID = @TaskId
+    `);
+
+    const updateTaskReq = new sql.Request(transaction);
+    updateTaskReq.input('TaskId', sql.BigInt, taskId);
+    updateTaskReq.input('ModifiedBy', sql.BigInt, assignedBy);
+
+    if (remainingRes.recordset.length === 0) {
+      // No remaining artists -> set Status to NULL (Unassigned)
+      await updateTaskReq.query(`
+        UPDATE TaskMaster
+        SET StatusID = NULL,
+            ModifiedBy = @ModifiedBy,
+            ModifiedDate = GETDATE()
+        WHERE TaskID = @TaskId
+      `);
+    } else {
+      // Other artists remain assigned -> update TaskMaster status accordingly
+      const statuses = remainingRes.recordset.map(r => Number(r.StatusID));
+      let newStatus = 1; // Assigned
+      if (statuses.includes(2)) newStatus = 2; // In Progress
+      else if (statuses.includes(5)) newStatus = 5; // Rework
+      else if (statuses.includes(3)) newStatus = 3; // Review
+
+      updateTaskReq.input('StatusID', sql.BigInt, newStatus);
+      await updateTaskReq.query(`
+        UPDATE TaskMaster
+        SET StatusID = @StatusID,
+            ModifiedBy = @ModifiedBy,
+            ModifiedDate = GETDATE()
+        WHERE TaskID = @TaskId
+      `);
+    }
 
     await transaction.commit();
 
@@ -699,20 +811,16 @@ async function unassignTask(req, res) {
       success: true,
       message: 'Artist unassigned successfully',
       assignmentId: parsedAssignmentId,
-      taskId: assignment.TaskID,
-      userId: assignment.UserID,
-      releasedTargetHours: assignment.TargetHours
+      taskId: taskId,
+      userId: userId,
+      releasedTargetHours: releasedHours,
+      actualHoursPreserved: actualHours
     });
-
   } catch (err) {
     if (transaction) {
-      try {
-        await transaction.rollback();
-      } catch (rollbackErr) {
-        console.error('[unassignTask] Rollback error:', rollbackErr);
-      }
+      try { await transaction.rollback(); } catch (e) {}
     }
-    console.error('[unassignTask] Transaction error:', err);
+    console.error('[unassignTask] Error:', err);
     return res.status(500).json({ success: false, message: 'Failed to unassign task', error: err.message });
   }
 }
@@ -764,6 +872,27 @@ async function reassignRemainingBid(req, res) {
     const origAssign = assignResult.recordset[0];
     const taskId = origAssign.TaskID;
     const origUserId = origAssign.OriginalUserID;
+
+    // Verify Lead Permissions
+    const leadDept = await getLeadDepartment(pool, req.user);
+    if (leadDept && leadDept.stageId) {
+      const taskCheck = await transaction.request()
+        .input('TaskId', sql.BigInt, taskId)
+        .query('SELECT WorkflowStageID FROM TaskMaster WHERE TaskID = @TaskId');
+      const taskStageId = taskCheck.recordset[0]?.WorkflowStageID;
+      if (Number(taskStageId) !== Number(leadDept.stageId)) {
+        await transaction.rollback();
+        return res.status(403).json({ success: false, message: `Forbidden: Leads can only reassign tasks within their department (${leadDept.deptName})` });
+      }
+
+      const newArtistDept = await transaction.request()
+        .input('UserId', sql.BigInt, parsedNewUserId)
+        .query('SELECT HomeDepartmentId FROM UserMaster WHERE UserId = @UserId');
+      if (Number(newArtistDept.recordset[0]?.HomeDepartmentId) !== Number(leadDept.deptId)) {
+        await transaction.rollback();
+        return res.status(403).json({ success: false, message: `Forbidden: Leads can only reassign to artists within their department (${leadDept.deptName})` });
+      }
+    }
 
     if (origUserId === parsedNewUserId) {
       await transaction.rollback();
